@@ -210,9 +210,10 @@ contract PaymentPoolTest is Test {
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 200e6, keccak256("p1"));
 
-        vm.prank(settler);
+        vm.startPrank(settler);
         pool.withdraw(merchant1, address(usdc), 50e6, merchant1);
         pool.withdraw(merchant1, address(usdc), 75e6, merchant1);
+        vm.stopPrank();
 
         assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 75e6);
     }
