@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Build outputs
+dist/
+build/
+out/
+
+# Foundry (contracts level already has its own but just in case)
+contracts/out/
+contracts/cache/
+
+# Redis / DB
+*.db
+
+# IDE
+.idea/
+.vscode/
