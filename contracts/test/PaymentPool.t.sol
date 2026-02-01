@@ -181,5 +181,91 @@ contract PaymentPoolTest is Test {
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
         vm.stopPrank();
     }
+
+    // ─── withdraw ────────────────────────────────────────────────────────────
+
+    /// @notice Authorized withdrawer can pull funds out.
+    function test_withdraw_basic() public {
+        // Setup: register settler as authorized, deposit funds
+        vm.prank(owner);
+        pool.setAuthorizedWithdrawer(settler, true);
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        // Withdraw 60 USDC to merchant1's own wallet
+        vm.prank(settler);
+        pool.withdraw(merchant1, address(usdc), 60e6, merchant1);
+
+        // Pool balance dropped, merchant received tokens
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 40e6);
+        assertEq(usdc.balanceOf(merchant1), 60e6);
+    }
+
+    /// @notice Partial withdrawals work and leave the remainder intact.
+    function test_withdraw_partial() public {
+        vm.prank(owner);
+        pool.setAuthorizedWithdrawer(settler, true);
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 200e6, keccak256("p1"));
+
+        vm.prank(settler);
+        pool.withdraw(merchant1, address(usdc), 50e6, merchant1);
+        pool.withdraw(merchant1, address(usdc), 75e6, merchant1);
+
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 75e6);
+    }
+
+    /// @notice FundsWithdrawn event is emitted correctly.
+    function test_withdraw_emitsEvent() public {
+        vm.prank(owner);
+        pool.setAuthorizedWithdrawer(settler, true);
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        vm.expectEmit(true, true, false, true);
+        emit PaymentPool.FundsWithdrawn(merchant1, address(usdc), 100e6);
+
+        vm.prank(settler);
+        pool.withdraw(merchant1, address(usdc), 100e6, merchant1);
+    }
+
+    /// @notice Unauthorized address cannot withdraw.
+    function test_withdraw_revert_unauthorized() public {
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        vm.prank(settler); // settler is NOT authorized yet
+        vm.expectRevert("PaymentPool: not authorized");
+        pool.withdraw(merchant1, address(usdc), 50e6, merchant1);
+    }
+
+    /// @notice Cannot withdraw more than the merchant has.
+    function test_withdraw_revert_insufficientBalance() public {
+        vm.prank(owner);
+        pool.setAuthorizedWithdrawer(settler, true);
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 50e6, keccak256("p1"));
+
+        vm.prank(settler);
+        vm.expectRevert("PaymentPool: insufficient balance");
+        pool.withdraw(merchant1, address(usdc), 100e6, merchant1);
+    }
+
+    /// @notice Cannot withdraw to zero address.
+    function test_withdraw_revert_zeroRecipient() public {
+        vm.prank(owner);
+        pool.setAuthorizedWithdrawer(settler, true);
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        vm.prank(settler);
+        vm.expectRevert("PaymentPool: recipient is zero address");
+        pool.withdraw(merchant1, address(usdc), 50e6, address(0));
+    }
 }
 
