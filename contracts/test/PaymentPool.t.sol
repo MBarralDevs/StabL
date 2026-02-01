@@ -267,5 +267,100 @@ contract PaymentPoolTest is Test {
         vm.expectRevert("PaymentPool: recipient is zero address");
         pool.withdraw(merchant1, address(usdc), 50e6, address(0));
     }
+
+    // ─── setAuthorizedWithdrawer ─────────────────────────────────────────────
+
+    /// @notice Only the owner can set authorized withdrawers.
+    function test_setAuthorizedWithdrawer_revert_notOwner() public {
+        vm.prank(merchant1);
+        vm.expectRevert(); // OZ Ownable revert
+        pool.setAuthorizedWithdrawer(settler, true);
+    }
+
+    /// @notice Owner can revoke authorization.
+    function test_setAuthorizedWithdrawer_revoke() public {
+        vm.prank(owner);
+        pool.setAuthorizedWithdrawer(settler, true);
+
+        // Revoke
+        vm.prank(owner);
+        pool.setAuthorizedWithdrawer(settler, false);
+
+        // Now settler should be rejected
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        vm.prank(settler);
+        vm.expectRevert("PaymentPool: not authorized");
+        pool.withdraw(merchant1, address(usdc), 50e6, merchant1);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FUZZ TESTS — random inputs to find edge cases automatically
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * @notice Fuzz: any valid amount deposited should show up in the balance.
+     *
+     * Foundry will call this with hundreds of random `amount` values.
+     * We bound it to [1, payer's balance] so we don't exceed what we minted.
+     */
+    function testFuzz_receivePayment_balanceMatchesDeposit(uint256 amount) public {
+        // Constrain amount to a valid range — can't deposit 0 or more than we have.
+        amount = bound(amount, 1, 10_000e6);
+
+        bytes32 paymentId = keccak256(abi.encodePacked(amount));
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), amount, paymentId);
+
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), amount);
+    }
+
+    /**
+     * @notice Fuzz: deposit then withdraw a portion — balance should equal the difference.
+     *
+     * Tests that the arithmetic never underflows and balances stay consistent
+     * across arbitrary deposit/withdraw pairs.
+     */
+    function testFuzz_depositThenWithdraw_balanceConsistent(uint256 depositAmount, uint256 withdrawAmount) public {
+        depositAmount = bound(depositAmount, 1, 10_000e6);
+        // Withdraw can't exceed deposit
+        withdrawAmount = bound(withdrawAmount, 0, depositAmount);
+
+        // Setup
+        vm.prank(owner);
+        pool.setAuthorizedWithdrawer(settler, true);
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), depositAmount, keccak256("fuzz-p1"));
+
+        vm.prank(settler);
+        if (withdrawAmount > 0) {
+            pool.withdraw(merchant1, address(usdc), withdrawAmount, merchant1);
+        }
+
+        // Balance must equal deposit minus withdrawal — no rounding, no overflow
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), depositAmount - withdrawAmount);
+    }
+
+    /**
+     * @notice Fuzz: two merchants deposit independently — their balances never interfere.
+     *
+     * This catches bugs where balance mappings accidentally share state.
+     */
+    function testFuzz_twoMerchants_isolated(uint256 amount1, uint256 amount2) public {
+        amount1 = bound(amount1, 1, 5_000e6);
+        amount2 = bound(amount2, 1, 5_000e6);
+
+        vm.startPrank(payer);
+        pool.receivePayment(merchant1, address(usdc), amount1, keccak256("fuzz-m1"));
+        pool.receivePayment(merchant2, address(usdc), amount2, keccak256("fuzz-m2"));
+        vm.stopPrank();
+
+        // Each merchant's balance is exactly what was deposited for them
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), amount1);
+        assertEq(pool.getMerchantBalance(merchant2, address(usdc)), amount2);
+    }
 }
 
