@@ -121,5 +121,65 @@ contract PaymentPoolTest is Test {
         assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 100e6);
         assertEq(pool.getMerchantBalance(merchant2, address(usdc)), 200e6);
     }
+
+    /// @notice Same merchant, different tokens — tracked independently.
+    function test_receivePayment_multiToken() public {
+        vm.startPrank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+        pool.receivePayment(merchant1, address(eurc), 50e6, keccak256("p2"));
+        vm.stopPrank();
+
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 100e6);
+        assertEq(pool.getMerchantBalance(merchant1, address(eurc)), 50e6);
+    }
+
+    /// @notice The PaymentReceived event is emitted with correct params.
+    function test_receivePayment_emitsEvent() public {
+        bytes32 paymentId = keccak256("event-test");
+        uint256 amount = 75e6;
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentPool.PaymentReceived(merchant1, payer, address(usdc), amount, paymentId);
+
+        vm.startPrank(payer);
+        pool.receivePayment(merchant1, address(usdc), amount, paymentId);
+        vm.stopPrank();
+    }
+
+    /// @notice Reverts if merchant address is zero.
+    function test_receivePayment_revert_zeroMerchant() public {
+        vm.startPrank(payer);
+        vm.expectRevert("PaymentPool: merchant is zero address");
+        pool.receivePayment(address(0), address(usdc), 100e6, keccak256("p1"));
+        vm.stopPrank();
+    }
+
+    /// @notice Reverts if token address is zero.
+    function test_receivePayment_revert_zeroToken() public {
+        vm.startPrank(payer);
+        vm.expectRevert("PaymentPool: token is zero address");
+        pool.receivePayment(merchant1, address(0), 100e6, keccak256("p1"));
+        vm.stopPrank();
+    }
+
+    /// @notice Reverts if amount is zero.
+    function test_receivePayment_revert_zeroAmount() public {
+        vm.startPrank(payer);
+        vm.expectRevert("PaymentPool: amount must be positive");
+        pool.receivePayment(merchant1, address(usdc), 0, keccak256("p1"));
+        vm.stopPrank();
+    }
+
+    /// @notice Reverts if payer hasn't approved enough.
+    function test_receivePayment_revert_noApproval() public {
+        address poorPayer = address(0x99);
+        usdc.mint(poorPayer, 100e6);
+        // Deliberately NOT approving
+
+        vm.startPrank(poorPayer);
+        vm.expectRevert(); // ERC20 allowance error
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+        vm.stopPrank();
+    }
 }
 
