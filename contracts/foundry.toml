@@ -2,9 +2,22 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
+test = 'test'
+script = 'script'
 solc_version = '0.8.30'
-remappings = ["@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/"]
+
+remappings = [
+    '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/',
+    'forge-std/=lib/forge-std/src/'
+]
+
+# Only compile our own contracts and tests — ignore everything in lib/
+fs_permissions = []
 
 [fmt]
 line_length = 120
 tab_width = 4
+
+[network.arc]
+rpc_url = "https://rpc.testnet.arc.network"
+chain_id = 5042002
