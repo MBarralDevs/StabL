@@ -18,6 +18,6 @@ fs_permissions = []
 line_length = 120
 tab_width = 4
 
-[network.arc]
+[profile.arc]
 rpc_url = "https://rpc.testnet.arc.network"
 chain_id = 5042002
