@@ -371,7 +371,7 @@ contract BatchSettlerTest is Test {
     }
 
     /// @notice Empty batch fails validation.
-    function test_validateBatch_emptyBatch() public {
+    function test_validateBatch_emptyBatch() public view {
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](0);
 
         (bool valid, uint256 errorIndex, string memory reason) = settler.validateBatch(settlements);
