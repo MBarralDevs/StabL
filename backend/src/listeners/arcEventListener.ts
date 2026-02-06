@@ -60,19 +60,18 @@ export async function startArcEventListener(): Promise<void> {
   // Listen for PaymentReceived events
   // Event signature: PaymentReceived(address indexed merchant, address indexed token, uint256 amount, bytes32 paymentId)
   paymentPool.on(
-    'PaymentReceived',
-    async (merchant, token, amount, paymentId, event) => {
-      try {
-        // Extract event data
-        const eventData = {
-          merchant,
-          token,
-          amount: amount.toString(), // Convert BigInt to string for JSON serialization
-          paymentId,
-          blockNumber: event.log.blockNumber,
-          transactionHash: event.log.transactionHash,
-          timestamp: Date.now(), // When we detected the event
-        };
+  'PaymentReceived',
+  async (merchant, payer, token, amount, paymentId, event) => {  // ← Added 'payer' parameter
+    try {
+      const eventData = {
+        merchant,
+        token,
+        amount: amount.toString(),
+        paymentId: paymentId.toString(),              // ← Convert bytes32 to string
+        blockNumber: event.blockNumber,               // ✅ Fixed
+        transactionHash: event.transactionHash,       // ✅ Fixed
+        timestamp: Date.now(),
+      };
 
         console.log('💰 PaymentReceived event detected:', {
           merchant,

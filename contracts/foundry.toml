@@ -19,5 +19,8 @@ line_length = 120
 tab_width = 4
 
 [profile.arc]
-rpc_url = "https://rpc.testnet.arc.network"
+eth_rpc_url = "https://rpc.testnet.arc.network"
 chain_id = 5042002
+
+[rpc_endpoints]
+arc = "https://rpc.testnet.arc.network"
