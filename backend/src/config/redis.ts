@@ -164,12 +164,10 @@ export async function createConsumerGroup(
   groupName: string
 ): Promise<void> {
   try {
-    // Create the stream if it doesn't exist (with a dummy entry we'll delete)
-    await redis.xadd(stream, '*', 'init', '1');
-
-    // Create consumer group starting from the beginning ('0')
-    // This means it will process all future messages
-    await redis.xgroup('CREATE', stream, groupName, '0', 'MKSTREAM');
+    // Create consumer group with MKSTREAM flag
+    // MKSTREAM creates the stream if it doesn't exist
+    // '$' means "start from the END" (only future messages)
+    await redis.xgroup('CREATE', stream, groupName, '$', 'MKSTREAM');
 
     console.log(`✅ Consumer group "${groupName}" created for stream "${stream}"`);
   } catch (error: any) {

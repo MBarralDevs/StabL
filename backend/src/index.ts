@@ -108,29 +108,7 @@ async function initialize(): Promise<void> {
     process.exit(1);
   }
 
-  // ─── Step 3: Initialize Redis Streams ────────────────────────────────────
-
-  console.log('📋 Step 3/5: Initializing Redis Streams...');
-  try {
-    // Create consumer groups for each stream
-    await createConsumerGroup(STREAMS.PAYMENTS, 'payment-processors');
-    console.log(`   ✅ Consumer group created: payment-processors (${STREAMS.PAYMENTS})`);
-
-    await createConsumerGroup(STREAMS.CREDITED, 'intent-checkers');
-    console.log(`   ✅ Consumer group created: intent-checkers (${STREAMS.CREDITED})`);
-
-    await createConsumerGroup(STREAMS.INTENT_HIT, 'batch-executors');
-    console.log(`   ✅ Consumer group created: batch-executors (${STREAMS.INTENT_HIT})`);
-
-    console.log('   ✅ All Redis Streams initialized');
-    console.log('');
-  } catch (error: any) {
-    console.error('   ❌ Failed to initialize Redis Streams:');
-    console.error(`   ${error.message}`);
-    process.exit(1);
-  }
-
-  // ─── Step 4: Display contract addresses ──────────────────────────────────
+  // ─── Step 3: Display contract addresses ──────────────────────────────────
 
   console.log('📋 Step 4/5: Contract configuration...');
   console.log(`   📍 Chain: Arc Testnet (${5042002})`);
@@ -140,7 +118,7 @@ async function initialize(): Promise<void> {
   console.log(`   📍 BatchSettler: ${env.BATCH_SETTLER_ADDRESS}`);
   console.log('');
 
-  // ─── Step 5: Start services ──────────────────────────────────────────────
+  // ─── Step 4: Start services ──────────────────────────────────────────────
 
   console.log('📋 Step 5/5: Starting services...');
   console.log('');
