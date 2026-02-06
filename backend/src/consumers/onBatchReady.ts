@@ -100,26 +100,34 @@ async function executeBatchSettlement(request: SettlementRequest): Promise<void>
     throw error;
   }
 
-  // ─── Step 2: Prepare batch data ─────────────────────────────────────────
+// ─── Step 2: Prepare batch data ─────────────────────────────────────────
 
-  // In a production system, you might aggregate multiple merchants here
-  // For now, we settle one merchant at a time
-  const merchants = [merchant];
-  const amounts = [actualBalance];
+// Create Settlement struct
+const settlements = [{
+  merchant: merchant,
+  token: token,
+  amount: actualBalance,
+  recipient: merchant  // Send to merchant's wallet
+}];
 
-  console.log(`   📦 Batch prepared:`);
-  console.log(`      Merchants: ${merchants.length}`);
-  console.log(`      Total amount: ${ethers.formatUnits(actualBalance, 6)} USDC`);
+// Generate batch ID (timestamp-based)
+const batchId = ethers.id(`batch-${Date.now()}`);
+const totalGasSaved = 0; // We can estimate this later
 
-  // ─── Step 3: Execute batch settlement ───────────────────────────────────
+console.log(`   📦 Batch prepared:`);
+console.log(`      Batch ID: ${batchId}`);
+console.log(`      Merchants: 1`);
+console.log(`      Total amount: ${ethers.formatUnits(actualBalance, 6)} USDC`);
 
-  let tx: ethers.ContractTransactionResponse;
+// ─── Step 3: Execute batch settlement ───────────────────────────────────
+
+let tx: ethers.TransactionResponse;
+
+try {
+  console.log(`   📤 Sending executeBatch transaction...`);
   
-  try {
-    console.log(`   📤 Sending executeBatch transaction...`);
-    
-    // Call BatchSettler.executeBatch(merchants[], amounts[], token)
-    tx = await batchSettler.executeBatch(merchants, amounts, token);
+  // Call BatchSettler.executeBatch(batchId, settlements[], totalGasSaved)
+  tx = await batchSettler.executeBatch(batchId, settlements, totalGasSaved);
     
     console.log(`   ⏳ Transaction sent: ${tx.hash}`);
     console.log(`   ⏳ Waiting for confirmation...`);
