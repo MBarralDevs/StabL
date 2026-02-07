@@ -179,7 +179,7 @@ try {
 // Example: Check if merchant wants funds on a different chain
 // In production, this would come from merchant preferences in IntentVault
 const MERCHANT_PREFERENCES: { [merchant: string]: { chain: number; token: string } } = {
-  '0x172B7952b0F711b8B372410E81d51Dcba7D4BB02': { 
+  '0x172b7952b0f711b8b372410e81d51dcba7d4bb02': { 
     chain: 42161, // Arbitrum
     token: getUSDCAddress(42161) // USDC on Arbitrum
   }
