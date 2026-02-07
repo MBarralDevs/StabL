@@ -32,6 +32,12 @@ import {
   BATCH_SETTLER_ADDRESS,
 } from '../config/contracts.js';
 import { prisma } from '../services/database.js';
+import { 
+  getLiFiQuote, 
+  executeLiFiQuote,
+  getUSDCAddress,
+  getDAIAddress 
+} from '../services/lifi.js';
 
 // ─── Contract Setup ──────────────────────────────────────────────────────────
 
@@ -159,6 +165,60 @@ try {
     
     throw error;
   }
+
+ // ─── Step 3.5: Cross-Chain Routing (if needed) ──────────────────────────
+
+/**
+ * If merchant wants to receive in a different token/chain,
+ * use Li.Fi to get REAL routing quotes and show what would happen.
+ * 
+ * For demo: We'll check if merchant wants a different chain
+ * and show real Li.Fi routing data.
+ */
+
+// Example: Check if merchant wants funds on a different chain
+// In production, this would come from merchant preferences in IntentVault
+const MERCHANT_PREFERENCES: { [merchant: string]: { chain: number; token: string } } = {
+  '0x172B7952b0F711b8B372410E81d51Dcba7D4BB02': { 
+    chain: 42161, // Arbitrum
+    token: getUSDCAddress(42161) // USDC on Arbitrum
+  }
+};
+
+const merchantPref = MERCHANT_PREFERENCES[merchant.toLowerCase()];
+
+if (merchantPref) {
+  console.log(`   🌉 Merchant wants different chain/token`);
+  console.log(`      Target: Chain ${merchantPref.chain}`);
+  console.log(`      Fetching REAL Li.Fi quote...`);
+  
+  try {
+    // Get REAL quote from Li.Fi API
+    const quote = await getLiFiQuote({
+      fromChainId: 137, // Polygon (example - Arc not supported by Li.Fi yet)
+      toChainId: merchantPref.chain,
+      fromToken: getUSDCAddress(137), // USDC on Polygon
+      toToken: merchantPref.token,
+      fromAmount: actualBalance.toString(),
+      fromAddress: merchant,
+    });
+    
+    // Simulate execution based on real quote
+    const lifiResult = await executeLiFiQuote(quote);
+    
+    console.log(`   ✅ Li.Fi routing complete`);
+    console.log(`      Real quote from Li.Fi API`);
+    console.log(`      Bridge: ${lifiResult.bridge}`);
+    console.log(`      Output: ${ethers.formatUnits(lifiResult.outputAmount, 6)} USDC`);
+    console.log(`      Gas cost: $${lifiResult.gasUsed}`);
+    
+  } catch (error: any) {
+    console.error(`   ❌ Li.Fi routing failed:`, error.message);
+    console.log(`   ⚠️  Merchant received original token instead`);
+  }
+} else {
+  console.log(`   ℹ️  Merchant accepting settlement token (no cross-chain routing needed)`);
+}
 
   // ─── Step 4: Update Yellow Network ──────────────────────────────────────
 

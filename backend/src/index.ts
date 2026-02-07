@@ -25,6 +25,7 @@ import {
   authenticateYellow, 
   disconnectFromYellow 
 } from './services/yellow.js';
+import { initializeLiFi } from './services/lifi.js';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -138,6 +139,17 @@ try {
 } catch (error: any) {
   console.error('   ❌ Yellow Network connection failed:', error.message);
   console.error('   ⚠️  Continuing without Yellow (payments will fail)');
+}
+console.log('');
+
+// Initialize Li.Fi SDK
+console.log('🌉 Initializing Li.Fi SDK...');
+try {
+  initializeLiFi();
+  console.log('   ✅ Li.Fi SDK ready');
+} catch (error: any) {
+  console.error('   ❌ Li.Fi initialization failed:', error.message);
+  console.error('   ⚠️  Continuing without Li.Fi (cross-chain routing unavailable)');
 }
 console.log('');
 

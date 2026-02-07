@@ -1,67 +1,31 @@
 // src/services/lifi.ts
 
 /**
- * Li.Fi Integration
+ * Li.Fi Integration (REAL API)
  * 
- * Handles cross-chain token routing and swaps for merchants who want
- * to receive payments in different tokens/chains than what customers paid.
+ * Uses Li.Fi's free API to get REAL cross-chain routing quotes.
+ * Shows actual bridges, DEXs, gas costs, and timing estimates.
  * 
- * Example: Customer pays USDC on Arc → Merchant receives DAI on Ethereum
+ * For demo: We get real quotes but simulate execution (no funds needed).
  */
 
-import { createConfig, getQuote, ChainId } from '@lifi/sdk';
+import { createConfig, getQuote, getRoutes, ChainId } from '@lifi/sdk';
 import { ethers } from 'ethers';
-import { createWalletClient, http } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import type { Chain } from 'viem';
 
-// Supported chains for Li.Fi
-const SUPPORTED_CHAINS: { [key: number]: Chain } = {
-  1: {
-    id: 1,
-    name: 'Ethereum',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrls: {
-      default: { http: ['https://eth.llamarpc.com'] },
-      public: { http: ['https://eth.llamarpc.com'] },
-    },
-  },
-  137: {
-    id: 137,
-    name: 'Polygon',
-    nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
-    rpcUrls: {
-      default: { http: ['https://polygon.llamarpc.com'] },
-      public: { http: ['https://polygon.llamarpc.com'] },
-    },
-  },
-  42161: {
-    id: 42161,
-    name: 'Arbitrum',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrls: {
-      default: { http: ['https://arbitrum.llamarpc.com'] },
-      public: { http: ['https://arbitrum.llamarpc.com'] },
-    },
-  },
-  10: {
-    id: 10,
-    name: 'Optimism',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrls: {
-      default: { http: ['https://optimism.llamarpc.com'] },
-      public: { http: ['https://optimism.llamarpc.com'] },
-    },
-  },
-  8453: {
-    id: 8453,
-    name: 'Base',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrls: {
-      default: { http: ['https://mainnet.base.org'] },
-      public: { http: ['https://mainnet.base.org'] },
-    },
-  },
+// Token addresses for common stablecoins
+const TOKENS = {
+  // USDC addresses
+  USDC_ETHEREUM: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  USDC_POLYGON: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+  USDC_ARBITRUM: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+  USDC_OPTIMISM: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+  USDC_BASE: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  
+  // DAI addresses
+  DAI_ETHEREUM: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+  DAI_POLYGON: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
+  DAI_ARBITRUM: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
+  DAI_OPTIMISM: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
 };
 
 /**
@@ -70,23 +34,25 @@ const SUPPORTED_CHAINS: { [key: number]: Chain } = {
 export function initializeLiFi(): void {
   console.log('🌉 Initializing Li.Fi SDK...');
   
-  const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!.replace('0x', '')}`);
-  
   createConfig({
     integrator: 'StabL-Gateway',
-    // We'll use Li.Fi's API without execution for now
-    // In production, you'd configure providers for execution
+    // No API key needed for free tier (200 requests/2 hours)
   });
   
   console.log('   ✅ Li.Fi SDK initialized');
-  console.log('   📡 Supported chains: Ethereum, Polygon, Arbitrum, Optimism, Base');
+  console.log('   📡 API: https://li.quest (Free tier)');
+  console.log('   🌍 Supported: 40+ chains, 50k+ token pairs');
 }
 
 /**
- * Get a quote for cross-chain/cross-token swap
+ * Get a REAL quote from Li.Fi API
  * 
- * This checks what it would cost to convert from the source token/chain
- * to the merchant's desired target token/chain.
+ * This makes an actual API call and returns real routing data:
+ * - Which bridges to use (Across, Stargate, Hop, etc.)
+ * - Which DEXs to use (Uniswap, Curve, etc.)
+ * - Real gas estimates
+ * - Real timing estimates
+ * - Real output amounts
  */
 export async function getLiFiQuote(params: {
   fromChainId: number;
@@ -97,10 +63,10 @@ export async function getLiFiQuote(params: {
   fromAddress: string;
 }): Promise<any> {
   
-  console.log(`  🌉 Getting Li.Fi quote...`);
-  console.log(`     From: ${params.fromToken} on chain ${params.fromChainId}`);
-  console.log(`     To: ${params.toToken} on chain ${params.toChainId}`);
-  console.log(`     Amount: ${ethers.formatUnits(params.fromAmount, 6)}`);
+  console.log(`  🌉 Getting REAL Li.Fi quote...`);
+  console.log(`     From: Chain ${params.fromChainId} (${getChainName(params.fromChainId)})`);
+  console.log(`     To: Chain ${params.toChainId} (${getChainName(params.toChainId)})`);
+  console.log(`     Amount: ${ethers.formatUnits(params.fromAmount, 6)} USDC`);
   
   try {
     const quote = await getQuote({
@@ -112,10 +78,20 @@ export async function getLiFiQuote(params: {
       fromAmount: params.fromAmount,
     });
     
-    console.log(`     ✅ Quote received`);
+    console.log(`     ✅ REAL quote received from Li.Fi!`);
+    console.log(`        Route: ${quote.toolDetails.name}`);
+    console.log(`        Bridge: ${quote.toolDetails.key}`);
     console.log(`        Estimated output: ${ethers.formatUnits(quote.estimate.toAmount, quote.action.toToken.decimals)} ${quote.action.toToken.symbol}`);
     console.log(`        Estimated time: ~${Math.round(quote.estimate.executionDuration / 60)} minutes`);
-    console.log(`        Route: ${quote.toolDetails.name}`);
+    console.log(`        Gas cost (USD): ~$${quote.estimate.gasCosts?.[0]?.amountUSD || 'N/A'}`);
+    
+    // Show the route breakdown
+    if (quote.includedSteps && quote.includedSteps.length > 0) {
+      console.log(`        Steps:`);
+      quote.includedSteps.forEach((step: any, index: number) => {
+        console.log(`          ${index + 1}. ${step.type}: ${step.tool} (${step.toolDetails.name})`);
+      });
+    }
     
     return quote;
     
@@ -126,28 +102,74 @@ export async function getLiFiQuote(params: {
 }
 
 /**
- * Execute cross-chain swap via Li.Fi
+ * Get multiple route options from Li.Fi
  * 
- * In production, this would execute the actual swap.
- * For the hackathon, we'll simulate it.
+ * Returns different routing strategies (fastest, cheapest, etc.)
  */
-export async function executeLiFiSwap(quote: any): Promise<{
+export async function getLiFiRoutes(params: {
+  fromChainId: number;
+  toChainId: number;
+  fromToken: string;
+  toToken: string;
+  fromAmount: string;
+  fromAddress: string;
+}): Promise<any> {
+  
+  console.log(`  🌉 Getting REAL Li.Fi routes...`);
+  
+  try {
+    const routes = await getRoutes({
+      fromAddress: params.fromAddress,
+      fromChainId: params.fromChainId,
+      toChainId: params.toChainId,
+      fromTokenAddress: params.fromToken,
+      toTokenAddress: params.toToken,
+      fromAmount: params.fromAmount,
+      options: {
+        order: 'FASTEST', // or 'CHEAPEST', 'RECOMMENDED'
+      },
+    });
+    
+    console.log(`     ✅ REAL routes received from Li.Fi!`);
+    console.log(`        Found ${routes.routes.length} route options`);
+    
+    // Show top 3 routes
+    routes.routes.slice(0, 3).forEach((route: any, index: number) => {
+      console.log(`        Route ${index + 1}:`);
+      console.log(`          Bridge: ${route.steps[0]?.toolDetails?.name || 'N/A'}`);
+      console.log(`          Output: ${ethers.formatUnits(route.toAmount, route.toToken.decimals)} ${route.toToken.symbol}`);
+      console.log(`          Time: ~${Math.round(route.steps[0]?.estimate?.executionDuration / 60)} min`);
+      console.log(`          Gas: ~$${route.gasCostUSD || 'N/A'}`);
+    });
+    
+    return routes;
+    
+  } catch (error: any) {
+    console.error(`     ❌ Li.Fi routes failed:`, error.message);
+    throw error;
+  }
+}
+
+/**
+ * Simulate executing a Li.Fi quote
+ * 
+ * In production, this would actually execute the swap.
+ * For demo, we show what WOULD happen based on the real quote.
+ */
+export async function executeLiFiQuote(quote: any): Promise<{
   txHash: string;
   outputAmount: string;
   outputToken: string;
   outputChain: number;
+  bridge: string;
+  gasUsed: string;
 }> {
   
-  console.log(`  🌉 Executing Li.Fi swap...`);
-  console.log(`     Route: ${quote.toolDetails.name}`);
+  console.log(`  🌉 Executing Li.Fi route (simulated)...`);
+  console.log(`     Bridge: ${quote.toolDetails.name}`);
+  console.log(`     Route: ${quote.action.fromToken.symbol} → ${quote.action.toToken.symbol}`);
   
-  // In production, you would:
-  // 1. Approve token spending if needed
-  // 2. Execute the swap transaction
-  // 3. Wait for confirmations
-  // 4. Return the result
-  
-  // For demo, we simulate:
+  // Simulate execution delay
   await new Promise(resolve => setTimeout(resolve, 200));
   
   const result = {
@@ -155,59 +177,59 @@ export async function executeLiFiSwap(quote: any): Promise<{
     outputAmount: quote.estimate.toAmount,
     outputToken: quote.action.toToken.address,
     outputChain: quote.action.toChainId,
+    bridge: quote.toolDetails.name,
+    gasUsed: quote.estimate.gasCosts?.[0]?.amountUSD || '0',
   };
   
-  console.log(`     ✅ Swap complete (simulated)`);
+  console.log(`     ✅ Execution complete (simulated)`);
   console.log(`        TxHash: ${result.txHash}`);
   console.log(`        Output: ${ethers.formatUnits(result.outputAmount, quote.action.toToken.decimals)} ${quote.action.toToken.symbol}`);
+  console.log(`        Bridge used: ${result.bridge}`);
+  console.log(`        Gas cost: $${result.gasUsed}`);
+  console.log(`        Status: Merchant will receive funds in ~${Math.round(quote.estimate.executionDuration / 60)} minutes`);
   
   return result;
 }
 
 /**
- * DEMO MODE: Mock Li.Fi swap
- * 
- * Simulates what Li.Fi would do for cross-chain/cross-token routing
+ * Helper: Get chain name from ID
  */
-export async function executeLiFiSwapMock(params: {
-  fromChainId: number;
-  toChainId: number;
-  fromToken: string;
-  toToken: string;
-  fromAmount: string;
-  toAddress: string;
-}): Promise<{
-  txHash: string;
-  outputAmount: string;
-  outputToken: string;
-  outputChain: number;
-}> {
-  
-  console.log(`  🌉 [LI.FI - DEMO MODE]`);
-  console.log(`     Simulating cross-chain swap via bridge aggregation`);
-  console.log(`     From: Chain ${params.fromChainId} → Chain ${params.toChainId}`);
-  console.log(`     Token: ${params.fromToken} → ${params.toToken}`);
-  console.log(`     Amount: ${ethers.formatUnits(params.fromAmount, 6)}`);
-  console.log(`     Recipient: ${params.toAddress}`);
-  
-  // Simulate processing time
-  await new Promise(resolve => setTimeout(resolve, 250));
-  
-  // Mock swap result (assuming ~1% slippage)
-  const outputAmount = BigInt(params.fromAmount) * 99n / 100n;
-  
-  const result = {
-    txHash: `0x${Math.random().toString(16).substring(2, 66)}`,
-    outputAmount: outputAmount.toString(),
-    outputToken: params.toToken,
-    outputChain: params.toChainId,
+function getChainName(chainId: number): string {
+  const names: { [key: number]: string } = {
+    1: 'Ethereum',
+    10: 'Optimism',
+    56: 'BSC',
+    137: 'Polygon',
+    8453: 'Base',
+    42161: 'Arbitrum',
+    43114: 'Avalanche',
   };
-  
-  console.log(`     ✅ Cross-chain swap complete!`);
-  console.log(`        Bridge used: Across Protocol (simulated)`);
-  console.log(`        Output: ${ethers.formatUnits(result.outputAmount, 6)} on chain ${params.toChainId}`);
-  console.log(`        Recipient received funds`);
-  console.log(`        Time: ~5 minutes (typical)`);
-  
-  return result;
+  return names[chainId] || `Chain ${chainId}`;
+}
+
+/**
+ * Helper: Get USDC address for a chain
+ */
+export function getUSDCAddress(chainId: number): string {
+  const addresses: { [key: number]: string } = {
+    1: TOKENS.USDC_ETHEREUM,
+    10: TOKENS.USDC_OPTIMISM,
+    137: TOKENS.USDC_POLYGON,
+    8453: TOKENS.USDC_BASE,
+    42161: TOKENS.USDC_ARBITRUM,
+  };
+  return addresses[chainId] || TOKENS.USDC_ETHEREUM;
+}
+
+/**
+ * Helper: Get DAI address for a chain
+ */
+export function getDAIAddress(chainId: number): string {
+  const addresses: { [key: number]: string } = {
+    1: TOKENS.DAI_ETHEREUM,
+    10: TOKENS.DAI_OPTIMISM,
+    137: TOKENS.DAI_POLYGON,
+    42161: TOKENS.DAI_ARBITRUM,
+  };
+  return addresses[chainId] || TOKENS.DAI_ETHEREUM;
 }
