@@ -162,6 +162,20 @@ try {
 
   // ─── Step 4: Update Yellow Network ──────────────────────────────────────
 
+/**
+ * Notify Yellow Network that on-chain settlement is complete.
+ * 
+ * In production:
+ * - Yellow Network's off-chain state is reconciled with on-chain settlement
+ * - This closes the liquidity loop (off-chain credit → on-chain settlement)
+ * 
+ * Demo mode:
+ * - This is currently mocked for demonstration
+ */
+console.log(`    [MOCK] Updating Yellow Network for merchant ${merchant}`);
+console.log(`    [MOCK] Amount: ${ethers.formatUnits(actualBalance, 6)} USDC`);
+console.log(`    [MOCK] TxHash: ${tx.hash}`);
+
   try {
     await mockUpdateYellowSettlement(merchant, actualBalance, tx.hash);
     console.log(`   ✅ Yellow Network updated`);

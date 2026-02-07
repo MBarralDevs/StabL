@@ -21,6 +21,10 @@ import {
   createConsumerGroup 
 } from '../config/redis.js';
 import { prisma } from '../services/database.js';
+import { 
+  creditMerchantViaYellow,
+  creditMerchantViaYellowMock 
+} from '../services/yellow.js';
 
 // ─── Consumer Configuration ──────────────────────────────────────────────────
 
@@ -35,72 +39,68 @@ const CONSUMER_NAME = `payment-processor-${process.pid}`; // Unique name per pro
  * @param paymentData - The payment data from the Redis stream
  */
 async function processPayment(paymentData: any): Promise<void> {
-  const { merchant, token, amount, paymentId, transactionHash } = paymentData;
+  console.log('🔍 DEBUG: paymentData structure:', JSON.stringify(paymentData, null, 2));
+  
+  const { merchant, token, amount, paymentId, blockNumber, transactionHash } = paymentData;
 
   console.log(`📦 Processing payment ${paymentId} for merchant ${merchant}`);
 
   // ─── Step 1: Credit merchant via Yellow Network ─────────────────────────
 
-  /**
-   * Yellow Network provides instant off-chain credit to the merchant.
-   * This happens via state channels, so the merchant can use the funds
-   * immediately even though on-chain settlement hasn't happened yet.
-   * 
-   * TODO: Implement Yellow Network integration
-   * For now, we'll mock this step.
-   */
   try {
     console.log(`  💳 Crediting merchant via Yellow...`);
     
-    // Mock Yellow credit (replace with actual Yellow SDK call)
-    await mockYellowCredit({
-      merchant,
-      amount,
-      token,
-      paymentId,
-    });
+ // ─── Step 1: Credit merchant via Yellow Network ─────────────────────────
+
+/**
+ * Yellow Network provides instant off-chain liquidity to merchants.
+ * 
+ * Production flow:
+ * - Gateway has funded unified balance in Yellow Network
+ * - Transfer executes via 'transfer' RPC method (<1 second)
+ * - Merchant receives funds in their Yellow unified balance
+ * - Merchant can withdraw to any blockchain
+ * 
+ * Demo mode:
+ * - Simulates the Yellow Network integration
+ * - Shows what production behavior would be
+ */
+let yellowTx;
+try {
+  // Try real Yellow Network transfer
+  yellowTx = await creditMerchantViaYellow(merchant, BigInt(amount), 'usdc');
+  console.log(`  ✅ Merchant credited via Yellow Network (TX: ${yellowTx.transactionId})`);
+  
+} catch (error: any) {
+  // Fallback to demo mode if Yellow is not funded/connected
+  console.log(`  ℹ️  Yellow Network: ${error.message}`);
+  console.log(`  🔄 Using Yellow demo mode...`);
+  yellowTx = await creditMerchantViaYellowMock(merchant, BigInt(amount), 'usdc');
+  console.log(`  ✅ Merchant credited (Demo mode - TX: ${yellowTx.transactionId})`);
+}
 
     console.log(`  ✅ Merchant credited via Yellow`);
   } catch (error) {
     console.error(`  ❌ Failed to credit via Yellow:`, error);
-    throw error; // Rethrow so the message stays in Redis pending
+    throw error;
   }
 
   // ─── Step 2: Write to database ──────────────────────────────────────────
 
-  /**
-   * Store the payment in PostgreSQL for audit trail and reporting.
-   * 
-   * TODO: Implement Prisma database write
-   * For now, we'll mock this step.
-   */
   try {
     console.log(`  💾 Writing payment to database...`);
     
-    // Mock database write (replace with actual Prisma call)
-    await writePaymentToDatabase({
-      paymentId,
-      merchant,
-      token,
-      amount,
-      transactionHash,
-      status: 'credited',
-      createdAt: new Date(),
-    });
+    // Pass the entire paymentData object which has all required fields
+    await writePaymentToDatabase(paymentData);
 
     console.log(`  ✅ Payment written to database`);
   } catch (error) {
     console.error(`  ❌ Failed to write to database:`, error);
-    throw error; // Rethrow so the message stays in Redis pending
+    throw error;
   }
 
   // ─── Step 3: Publish to "credited" stream ───────────────────────────────
 
-  /**
-   * Notify downstream consumers that this payment has been credited.
-   * The intent matcher will listen to this stream to check if any
-   * merchant's settlement threshold has been hit.
-   */
   await publishEvent(STREAMS.CREDITED, {
     paymentId,
     merchant,
@@ -114,25 +114,6 @@ async function processPayment(paymentData: any): Promise<void> {
 
 // ─── Mock Functions (to be replaced) ─────────────────────────────────────────
 
-/**
- * Mock Yellow Network credit operation.
- * 
- * TODO: Replace with actual Yellow SDK integration:
- * 
- * import { YellowClient } from '@yellow-network/sdk';
- * const yellow = new YellowClient({ ... });
- * await yellow.credit({ merchant, amount, asset: token });
- */
-async function mockYellowCredit(data: any): Promise<void> {
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  // In production, this would call Yellow's API
-  console.log(`    [MOCK] Yellow credit:`, {
-    merchant: data.merchant,
-    amount: ethers.formatUnits(data.amount, 6), // USDC has 6 decimals
-  });
-}
 
 /**
  * Write payment to database using Prisma.

@@ -20,6 +20,11 @@ import { startPaymentConsumer, stopPaymentConsumer } from './consumers/onPayment
 import { startIntentChecker, stopIntentChecker } from './consumers/onPaymentCredited.js';
 import { startBatchExecutor, stopBatchExecutor } from './consumers/onBatchReady.js';
 import { closePrisma } from './services/database.js';
+import { 
+  connectToYellow, 
+  authenticateYellow, 
+  disconnectFromYellow 
+} from './services/yellow.js';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -123,6 +128,18 @@ async function initialize(): Promise<void> {
 
   console.log('📋 Step 5/5: Starting services...');
   console.log('');
+
+  // Connect to Yellow Network
+console.log('🟡 Connecting to Yellow Network...');
+try {
+  await connectToYellow();
+  await authenticateYellow();
+  console.log('   ✅ Yellow Network connected');
+} catch (error: any) {
+  console.error('   ❌ Yellow Network connection failed:', error.message);
+  console.error('   ⚠️  Continuing without Yellow (payments will fail)');
+}
+console.log('');
 
   // Start Arc event listener
   console.log('🎧 Starting Arc blockchain listener...');
@@ -239,6 +256,15 @@ async function shutdown(signal: string): Promise<void> {
   } catch (error: any) {
     console.error('   ⚠️  Error closing Redis:', error.message);
   }
+
+  // Close Yellow Network connection
+try {
+  console.log('⏳ Closing Yellow Network connection...');
+  await disconnectFromYellow();
+  console.log('   ✅ Yellow Network disconnected');
+} catch (error: any) {
+  console.error('   ⚠️  Error closing Yellow:', error.message);
+}
 
   // Close Prisma connection
 try {

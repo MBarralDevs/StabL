@@ -14,22 +14,20 @@ datasource db {
 
 model Payment {
   id              String   @id @default(cuid())
-  paymentId       String   @unique // The bytes32 from the blockchain
-  merchant        String   // Merchant address
-  token           String   // Token address (USDC, etc.)
-  amount          String   // Amount as string (to handle BigInt)
-  blockNumber     Int
-  transactionHash String
+  paymentId       String   @unique
+  merchant        String
+  token           String
+  amount          String
+  blockNumber     Int?     // ← Made optional with ?
+  transactionHash String?  // ← Made optional with ?
   
-  // Yellow Network credit
   yellowCredited  Boolean  @default(false)
   yellowCreditedAt DateTime?
   
-  // Settlement status
   settled         Boolean  @default(false)
   settlementTxHash String?
   settledAt       DateTime?
-  batchId         String?  // Which batch this was settled in
+  batchId         String?
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

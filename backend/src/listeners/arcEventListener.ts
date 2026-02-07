@@ -61,36 +61,40 @@ export async function startArcEventListener(): Promise<void> {
   // Event signature: PaymentReceived(address indexed merchant, address indexed token, uint256 amount, bytes32 paymentId)
   paymentPool.on(
   'PaymentReceived',
-  async (merchant, payer, token, amount, paymentId, event) => {  // ← Added 'payer' parameter
+  async (merchant, payer, token, amount, paymentId, event) => {
     try {
+      // Get block number and transaction hash from the event
+      // In ethers v6, these are properties of the event object itself
+      const blockNumber = event.log?.blockNumber ?? 0;
+      const transactionHash = event.log?.transactionHash ?? '0x0';
+
       const eventData = {
         merchant,
         token,
         amount: amount.toString(),
-        paymentId: paymentId.toString(),              // ← Convert bytes32 to string
-        blockNumber: event.blockNumber,               // ✅ Fixed
-        transactionHash: event.transactionHash,       // ✅ Fixed
+        paymentId: paymentId.toString(),
+        blockNumber,
+        transactionHash,
         timestamp: Date.now(),
       };
 
-        console.log('💰 PaymentReceived event detected:', {
-          merchant,
-          token,
-          amount: ethers.formatUnits(amount, 6), // USDC has 6 decimals
-          paymentId,
-          txHash: event.log.transactionHash,
-        });
+      console.log('💰 PaymentReceived event detected:', {
+        merchant,
+        token,
+        amount: ethers.formatUnits(amount, 6),
+        paymentId,
+        blockNumber,
+        txHash: transactionHash,
+      });
 
-        // Publish to Redis Stream
-        await publishEvent(STREAMS.PAYMENTS, eventData);
-
-        console.log(`✅ Event published to ${STREAMS.PAYMENTS} stream`);
-      } catch (error) {
-        console.error('❌ Error processing PaymentReceived event:', error);
-        // Don't throw - we don't want one bad event to crash the listener
-      }
+      // Publish to Redis Stream
+      await publishEvent(STREAMS.PAYMENTS, eventData);
+      console.log(`✅ Event published to ${STREAMS.PAYMENTS} stream`);
+    } catch (error) {
+      console.error('❌ Error processing PaymentReceived event:', error);
     }
-  );
+  }
+);
 
   // ─── Connection Error Handling ───────────────────────────────────────────
 
