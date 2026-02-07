@@ -1,0 +1,72 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Payment: A single payment received on-chain ─────────────────────────────
+
+model Payment {
+  id              String   @id @default(cuid())
+  paymentId       String   @unique // The bytes32 from the blockchain
+  merchant        String   // Merchant address
+  token           String   // Token address (USDC, etc.)
+  amount          String   // Amount as string (to handle BigInt)
+  blockNumber     Int
+  transactionHash String
+  
+  // Yellow Network credit
+  yellowCredited  Boolean  @default(false)
+  yellowCreditedAt DateTime?
+  
+  // Settlement status
+  settled         Boolean  @default(false)
+  settlementTxHash String?
+  settledAt       DateTime?
+  batchId         String?  // Which batch this was settled in
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([merchant])
+  @@index([settled])
+  @@index([createdAt])
+}
+
+// ─── Batch: A batch settlement execution ─────────────────────────────────────
+
+model Batch {
+  id              String   @id @default(cuid())
+  batchId         String   @unique // The bytes32 used on-chain
+  merchantCount   Int      // How many merchants in this batch
+  totalAmount     String   // Total amount settled
+  gasUsed         String   // Gas used for the transaction
+  gasSaved        String   // Estimated gas saved vs individual settlements
+  transactionHash String
+  blockNumber     Int
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([createdAt])
+}
+
+// ─── MerchantIntent: Cache of merchant intents (optional, for analytics) ─────
+
+model MerchantIntent {
+  id                  String   @id @default(cuid())
+  merchant            String   @unique
+  speed               String   // IMMEDIATE, STANDARD, DEFERRED
+  minBatchAmount      String
+  maxWaitTimeSeconds  Int
+  targetToken         String
+  
+  updatedAt           DateTime @updatedAt
+  
+  @@index([merchant])
+}

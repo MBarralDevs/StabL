@@ -11,9 +11,8 @@ contract VerifySettlement is Script {
     IERC20 usdc = IERC20(0x4c20Ca8BF703fe85447954Af3EF0E3eCf16dEdb5);
 
     function run() external view {
-        address merchant = vm.envAddress("DEPLOYER_PRIVATE_KEY") != address(0)
-            ? vm.addr(vm.envUint("DEPLOYER_PRIVATE_KEY"))
-            : address(0);
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address merchant = vm.addr(deployerPrivateKey);
 
         console.log("=================================================");
         console.log("Settlement Verification");

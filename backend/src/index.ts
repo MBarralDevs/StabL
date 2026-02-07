@@ -19,6 +19,7 @@ import { startArcEventListener, stopArcEventListener } from './listeners/arcEven
 import { startPaymentConsumer, stopPaymentConsumer } from './consumers/onPaymentReceived.js';
 import { startIntentChecker, stopIntentChecker } from './consumers/onPaymentCredited.js';
 import { startBatchExecutor, stopBatchExecutor } from './consumers/onBatchReady.js';
+import { closePrisma } from './services/database.js';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -238,6 +239,15 @@ async function shutdown(signal: string): Promise<void> {
   } catch (error: any) {
     console.error('   ⚠️  Error closing Redis:', error.message);
   }
+
+  // Close Prisma connection
+try {
+  console.log('⏳ Closing database connection...');
+  await closePrisma();
+  console.log('   ✅ Database connection closed');
+} catch (error: any) {
+  console.error('   ⚠️  Error closing database:', error.message);
+}
 
   console.log('');
   console.log('👋 StabL Gateway shut down complete');

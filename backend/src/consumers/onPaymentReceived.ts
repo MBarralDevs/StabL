@@ -20,6 +20,7 @@ import {
   STREAMS,
   createConsumerGroup 
 } from '../config/redis.js';
+import { prisma } from '../services/database.js';
 
 // ─── Consumer Configuration ──────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ async function processPayment(paymentData: any): Promise<void> {
     console.log(`  💾 Writing payment to database...`);
     
     // Mock database write (replace with actual Prisma call)
-    await mockDatabaseWrite({
+    await writePaymentToDatabase({
       paymentId,
       merchant,
       token,
@@ -134,22 +135,25 @@ async function mockYellowCredit(data: any): Promise<void> {
 }
 
 /**
- * Mock database write operation.
- * 
- * TODO: Replace with actual Prisma call:
- * 
- * import { prisma } from '../config/database.js';
- * await prisma.payment.create({ data });
+ * Write payment to database using Prisma.
  */
-async function mockDatabaseWrite(data: any): Promise<void> {
-  // Simulate database write delay
-  await new Promise(resolve => setTimeout(resolve, 50));
+async function writePaymentToDatabase(paymentData: any): Promise<void> {
+  const { paymentId, merchant, token, amount, blockNumber, transactionHash } = paymentData;
   
-  // In production, this would be a Prisma call
-  console.log(`    [MOCK] Database write:`, {
-    paymentId: data.paymentId,
-    merchant: data.merchant,
+  await prisma.payment.create({
+    data: {
+      paymentId: paymentId.toString(),
+      merchant,
+      token,
+      amount: amount.toString(),
+      blockNumber,
+      transactionHash,
+      yellowCredited: true, // We just credited them
+      yellowCreditedAt: new Date(),
+    },
   });
+  
+  console.log(`  ✅ Payment ${paymentId} written to database`);
 }
 
 // ─── Consumer Loop ───────────────────────────────────────────────────────────

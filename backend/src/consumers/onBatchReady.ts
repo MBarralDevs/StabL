@@ -31,6 +31,7 @@ import {
   PAYMENT_POOL_ADDRESS,
   BATCH_SETTLER_ADDRESS,
 } from '../config/contracts.js';
+import { prisma } from '../services/database.js';
 
 // ─── Contract Setup ──────────────────────────────────────────────────────────
 
@@ -172,7 +173,7 @@ try {
   // ─── Step 5: Update database ────────────────────────────────────────────
 
   try {
-    await mockUpdateDatabaseSettlement(merchant, token, actualBalance, tx.hash);
+    await updateDatabaseSettlement(merchant, token, actualBalance, tx.hash, batchId);
     console.log(`   ✅ Database updated`);
   } catch (error) {
     console.error(`   ❌ Failed to update database:`, error);
@@ -210,36 +211,31 @@ async function mockUpdateYellowSettlement(
 }
 
 /**
- * Mock function to update database after settlement.
- * 
- * TODO: Replace with actual Prisma update:
- * 
- * await prisma.payment.updateMany({
- *   where: {
- *     merchant: merchant,
- *     token: token,
- *     settled: false,
- *   },
- *   data: {
- *     settled: true,
- *     settlementTxHash: txHash,
- *     settledAt: new Date(),
- *   },
- * });
+ * Update database after settlement using Prisma.
  */
-async function mockUpdateDatabaseSettlement(
+async function updateDatabaseSettlement(
   merchant: string,
   token: string,
   amount: bigint,
-  txHash: string
+  txHash: string,
+  batchId: string
 ): Promise<void> {
-  console.log(`    [MOCK] Updating database for merchant ${merchant}`);
-  console.log(`    [MOCK] Token: ${token}`);
-  console.log(`    [MOCK] Amount: ${ethers.formatUnits(amount, 6)} USDC`);
-  console.log(`    [MOCK] TxHash: ${txHash}`);
+  // Update all unsettled payments for this merchant
+  const result = await prisma.payment.updateMany({
+    where: {
+      merchant,
+      token,
+      settled: false,
+    },
+    data: {
+      settled: true,
+      settlementTxHash: txHash,
+      settledAt: new Date(),
+      batchId,
+    },
+  });
   
-  // Simulate DB write delay
-  await new Promise(resolve => setTimeout(resolve, 50));
+  console.log(`   ✅ Database updated: ${result.count} payment(s) marked as settled`);
 }
 
 // ─── Consumer Loop ───────────────────────────────────────────────────────────
