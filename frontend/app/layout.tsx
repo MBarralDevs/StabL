@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import './globals.css';
+import '../styles/globals.css';  // Changed path
 
 export const metadata: Metadata = {
   title: 'StabL Gateway - Universal Stablecoin Payment Processing',
