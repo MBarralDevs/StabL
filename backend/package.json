@@ -4,10 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "vitest"
+    "test": "vitest",
+    "dev": "tsx src/index.ts",
+    "api": "tsx src/api/index.ts"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +17,7 @@
     "@erc7824/nitrolite": "^0.5.3",
     "@lifi/sdk": "^3.15.5",
     "@prisma/client": "^5.22.0",
+    "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "ethers": "^6.16.0",
     "express": "^5.2.1",
@@ -23,9 +25,11 @@
     "viem": "^2.45.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.2.0",
     "prisma": "^5.22.0",
+    "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"

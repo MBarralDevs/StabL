@@ -42,30 +42,29 @@ export default function Dashboard() {
   }, []);
 
   const fetchData = async () => {
-    try {
-      // Fetch payments
-      const paymentsRes = await fetch('/api/payments');
-      const paymentsData = await paymentsRes.json();
-      setPayments(paymentsData);
+  try {
+    // Fetch payments from real backend
+    const paymentsRes = await fetch('http://localhost:3002/api/payments');
+    const paymentsData = await paymentsRes.json();
+    setPayments(paymentsData);
 
-      // Calculate stats
-      const totalVolume = paymentsData.reduce((sum: number, p: Payment) => 
-        sum + parseFloat(p.amount), 0
-      );
-      
-      setStats({
-        totalVolume: totalVolume.toFixed(2),
-        totalPayments: paymentsData.length,
-        avgSettlementTime: '<5s',
-        activeChains: 3,
-      });
+    // Fetch stats from real backend
+    const statsRes = await fetch('http://localhost:3002/api/stats');
+    const statsData = await statsRes.json();
+    
+    setStats({
+      totalVolume: statsData.totalVolume,
+      totalPayments: statsData.totalPayments,
+      avgSettlementTime: statsData.avgSettlementTime,
+      activeChains: statsData.activeChains,
+    });
 
-      setLoading(false);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-      setLoading(false);
-    }
-  };
+    setLoading(false);
+  } catch (error) {
+    console.error('Failed to fetch data:', error);
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
