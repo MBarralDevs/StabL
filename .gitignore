@@ -22,3 +22,18 @@ contracts/cache/
 # IDE
 .idea/
 .vscode/
+
+# Foundry
+contracts/broadcast/
+contracts/cache/
+contracts/out/
+contracts/lib/
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+
+# Build artifacts
+backend/dist/
+backend/node_modules/
