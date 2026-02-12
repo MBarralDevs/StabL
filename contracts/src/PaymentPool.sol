@@ -35,6 +35,12 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 contract PaymentPool is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
+    // ─── Custom Errors ───────────────────────────────────────────────────────
+    error PaymentPool__NotAuthorized();
+    error PaymentPool__ZeroAddress();
+    error PaymentPool__ZeroAmount();
+    error PaymentPool__InsufficientBalance(address merchant, address token, uint256 requested, uint256 available);
+
     // ─── Events ──────────────────────────────────────────────────────────────
 
     /// @notice Emitted when a payment lands in the pool.
@@ -75,7 +81,7 @@ contract PaymentPool is Ownable, ReentrancyGuard {
      *         set after deployment.
      */
     function setAuthorizedWithdrawer(address withdrawer, bool authorized) external onlyOwner {
-        require(withdrawer != address(0), "PaymentPool: zero address");
+        if (withdrawer == address(0)) revert PaymentPool__ZeroAddress();
         authorizedWithdrawers[withdrawer] = authorized;
     }
 
@@ -91,9 +97,9 @@ contract PaymentPool is Ownable, ReentrancyGuard {
      * @param paymentId  Opaque ID from the backend — stored in the event for correlation.
      */
     function receivePayment(address merchant, address token, uint256 amount, bytes32 paymentId) external nonReentrant {
-        require(merchant != address(0), "PaymentPool: merchant is zero address");
-        require(token != address(0), "PaymentPool: token is zero address");
-        require(amount > 0, "PaymentPool: amount must be positive");
+        if (merchant == address(0)) revert PaymentPool__ZeroAddress();
+        if (token == address(0)) revert PaymentPool__ZeroAddress();
+        if (amount == 0) revert PaymentPool__ZeroAmount();
 
         // Pull tokens from the caller into this contract.
         // SafeERC20 handles tokens that don't return bool (like some USDC versions).
@@ -118,9 +124,10 @@ contract PaymentPool is Ownable, ReentrancyGuard {
      *                   or another contract for further routing).
      */
     function withdraw(address merchant, address token, uint256 amount, address recipient) external nonReentrant {
-        require(authorizedWithdrawers[msg.sender], "PaymentPool: not authorized");
-        require(recipient != address(0), "PaymentPool: recipient is zero address");
-        require(balances[merchant][token] >= amount, "PaymentPool: insufficient balance");
+        if (!authorizedWithdrawers[msg.sender]) revert PaymentPool__NotAuthorized();
+        if (recipient == address(0)) revert PaymentPool__ZeroAddress();
+        uint256 balance = balances[merchant][token];
+        if (balance < amount) revert PaymentPool__InsufficientBalance(merchant, token, amount, balance);
 
         balances[merchant][token] -= amount;
 
