@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title PaymentPool
@@ -32,7 +33,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  *         whole value prop is "accept anything". Each merchant balance is tracked
  *         per-token.
  */
-contract PaymentPool is Ownable, ReentrancyGuard {
+contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // ─── Custom Errors ───────────────────────────────────────────────────────
@@ -96,7 +97,11 @@ contract PaymentPool is Ownable, ReentrancyGuard {
      * @param amount     How much to deposit. Caller must have approved this contract.
      * @param paymentId  Opaque ID from the backend — stored in the event for correlation.
      */
-    function receivePayment(address merchant, address token, uint256 amount, bytes32 paymentId) external nonReentrant {
+    function receivePayment(address merchant, address token, uint256 amount, bytes32 paymentId)
+        external
+        whenNotPaused
+        nonReentrant
+    {
         if (merchant == address(0)) revert PaymentPool__ZeroAddress();
         if (token == address(0)) revert PaymentPool__ZeroAddress();
         if (amount == 0) revert PaymentPool__ZeroAmount();
@@ -123,7 +128,11 @@ contract PaymentPool is Ownable, ReentrancyGuard {
      * @param recipient  Where to send the tokens (could be the merchant directly,
      *                   or another contract for further routing).
      */
-    function withdraw(address merchant, address token, uint256 amount, address recipient) external nonReentrant {
+    function withdraw(address merchant, address token, uint256 amount, address recipient)
+        external
+        whenNotPaused
+        nonReentrant
+    {
         if (!authorizedWithdrawers[msg.sender]) revert PaymentPool__NotAuthorized();
         if (recipient == address(0)) revert PaymentPool__ZeroAddress();
         uint256 balance = balances[merchant][token];
@@ -143,5 +152,18 @@ contract PaymentPool is Ownable, ReentrancyGuard {
      */
     function getMerchantBalance(address merchant, address token) external view returns (uint256) {
         return balances[merchant][token];
+    }
+
+    // ─── Admin: Pause / Unpause ─────────────────────────────────────────────
+
+    /// @notice Owner can pause the contract in case of emergency.
+    ///         Pausing blocks all deposits and withdrawals.
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Owner can unpause to resume normal operations.
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
