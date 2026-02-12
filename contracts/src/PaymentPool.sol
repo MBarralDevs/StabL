@@ -60,7 +60,9 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
     );
 
     /// @notice Emitted when funds are withdrawn from the pool (by BatchSettler).
-    event FundsWithdrawn(address indexed merchant, address indexed token, uint256 amount);
+    event FundsWithdrawn(
+        address indexed merchant, address indexed token, uint256 amount, address recipient, address indexed withdrawer
+    );
 
     /// @notice Emitted when a token's whitelist status changes.
     event TokenSupportUpdated(address indexed token, bool supported);
@@ -168,7 +170,7 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
 
         IERC20(token).safeTransfer(recipient, amount);
 
-        emit FundsWithdrawn(merchant, token, amount);
+        emit FundsWithdrawn(merchant, token, amount, recipient, msg.sender);
     }
 
     // ─── View: Check Balances ────────────────────────────────────────────────
