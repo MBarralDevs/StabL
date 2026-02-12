@@ -42,6 +42,7 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
     error PaymentPool__ZeroAmount();
     error PaymentPool__InsufficientBalance(address merchant, address token, uint256 requested, uint256 available);
     error PaymentPool__TokenNotSupported(address token);
+    error PaymentPool__DuplicatePayment(bytes32 paymentId);
 
     // ─── Events ──────────────────────────────────────────────────────────────
 
@@ -77,6 +78,10 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
     /// @notice Tokens that are allowed to be deposited into the pool.
     /// Only owner-whitelisted tokens can be used in receivePayment().
     mapping(address => bool) private supportedTokens;
+
+    /// @notice Tracks which payment IDs have already been processed.
+    /// Prevents the same payment from being deposited twice.
+    mapping(bytes32 => bool) private processedPayments;
 
     // ─── Constructor ─────────────────────────────────────────────────────────
 
@@ -123,6 +128,9 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
         if (token == address(0)) revert PaymentPool__ZeroAddress();
         if (amount == 0) revert PaymentPool__ZeroAmount();
         if (!supportedTokens[token]) revert PaymentPool__TokenNotSupported(token);
+        if (processedPayments[paymentId]) revert PaymentPool__DuplicatePayment(paymentId);
+
+        processedPayments[paymentId] = true;
 
         // Pull tokens from the caller into this contract.
         // SafeERC20 handles tokens that don't return bool (like some USDC versions).
@@ -175,6 +183,11 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
     /// @notice Check if a token is whitelisted for deposits.
     function isTokenSupported(address token) external view returns (bool) {
         return supportedTokens[token];
+    }
+
+    /// @notice Check if a payment ID has already been processed.
+    function isPaymentProcessed(bytes32 paymentId) external view returns (bool) {
+        return processedPayments[paymentId];
     }
 
     // ─── Admin: Pause / Unpause ─────────────────────────────────────────────
