@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title PaymentPool
@@ -31,7 +32,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  *         whole value prop is "accept anything". Each merchant balance is tracked
  *         per-token.
  */
-contract PaymentPool is Ownable {
+contract PaymentPool is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ─── Events ──────────────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ contract PaymentPool is Ownable {
      * @param amount     How much to deposit. Caller must have approved this contract.
      * @param paymentId  Opaque ID from the backend — stored in the event for correlation.
      */
-    function receivePayment(address merchant, address token, uint256 amount, bytes32 paymentId) external {
+    function receivePayment(address merchant, address token, uint256 amount, bytes32 paymentId) external nonReentrant {
         require(merchant != address(0), "PaymentPool: merchant is zero address");
         require(token != address(0), "PaymentPool: token is zero address");
         require(amount > 0, "PaymentPool: amount must be positive");
@@ -116,7 +117,7 @@ contract PaymentPool is Ownable {
      * @param recipient  Where to send the tokens (could be the merchant directly,
      *                   or another contract for further routing).
      */
-    function withdraw(address merchant, address token, uint256 amount, address recipient) external {
+    function withdraw(address merchant, address token, uint256 amount, address recipient) external nonReentrant {
         require(authorizedWithdrawers[msg.sender], "PaymentPool: not authorized");
         require(recipient != address(0), "PaymentPool: recipient is zero address");
         require(balances[merchant][token] >= amount, "PaymentPool: insufficient balance");
