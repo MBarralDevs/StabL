@@ -41,6 +41,7 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
     error PaymentPool__ZeroAddress();
     error PaymentPool__ZeroAmount();
     error PaymentPool__InsufficientBalance(address merchant, address token, uint256 requested, uint256 available);
+    error PaymentPool__TokenNotSupported(address token);
 
     // ─── Events ──────────────────────────────────────────────────────────────
 
@@ -60,6 +61,9 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
     /// @notice Emitted when funds are withdrawn from the pool (by BatchSettler).
     event FundsWithdrawn(address indexed merchant, address indexed token, uint256 amount);
 
+    /// @notice Emitted when a token's whitelist status changes.
+    event TokenSupportUpdated(address indexed token, bool supported);
+
     // ─── State ───────────────────────────────────────────────────────────────
 
     /// @notice Per-merchant, per-token balances.
@@ -69,6 +73,10 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
     /// @notice Addresses authorized to call withdraw (i.e. the BatchSettler contract).
     /// We use a mapping for O(1) lookup.
     mapping(address => bool) private authorizedWithdrawers;
+
+    /// @notice Tokens that are allowed to be deposited into the pool.
+    /// Only owner-whitelisted tokens can be used in receivePayment().
+    mapping(address => bool) private supportedTokens;
 
     // ─── Constructor ─────────────────────────────────────────────────────────
 
@@ -84,6 +92,15 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
     function setAuthorizedWithdrawer(address withdrawer, bool authorized) external onlyOwner {
         if (withdrawer == address(0)) revert PaymentPool__ZeroAddress();
         authorizedWithdrawers[withdrawer] = authorized;
+    }
+
+    /// @notice Owner adds or removes a token from the whitelist.
+    /// @param token   The ERC20 token address.
+    /// @param supported  True to allow, false to block.
+    function setTokenSupport(address token, bool supported) external onlyOwner {
+        if (token == address(0)) revert PaymentPool__ZeroAddress();
+        supportedTokens[token] = supported;
+        emit TokenSupportUpdated(token, supported);
     }
 
     // ─── Core: Receive Payment ───────────────────────────────────────────────
@@ -105,6 +122,7 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
         if (merchant == address(0)) revert PaymentPool__ZeroAddress();
         if (token == address(0)) revert PaymentPool__ZeroAddress();
         if (amount == 0) revert PaymentPool__ZeroAmount();
+        if (!supportedTokens[token]) revert PaymentPool__TokenNotSupported(token);
 
         // Pull tokens from the caller into this contract.
         // SafeERC20 handles tokens that don't return bool (like some USDC versions).
@@ -152,6 +170,11 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
      */
     function getMerchantBalance(address merchant, address token) external view returns (uint256) {
         return balances[merchant][token];
+    }
+
+    /// @notice Check if a token is whitelisted for deposits.
+    function isTokenSupported(address token) external view returns (bool) {
+        return supportedTokens[token];
     }
 
     // ─── Admin: Pause / Unpause ─────────────────────────────────────────────
