@@ -65,6 +65,7 @@ contract IntentVault is Ownable, Pausable {
         uint256 maxWaitTimeSeconds;
         address targetToken;
         bool exists;
+        uint256 updatedAt;
     }
 
     // ─── Custom Errors ───────────────────────────────────────────────────────
@@ -129,7 +130,8 @@ contract IntentVault is Ownable, Pausable {
             minBatchAmount: minBatchAmount,
             maxWaitTimeSeconds: maxWaitTimeSeconds,
             targetToken: targetToken,
-            exists: true
+            exists: true,
+            updatedAt: block.timestamp
         });
 
         emit IntentUpdated(msg.sender, speed, minBatchAmount, maxWaitTimeSeconds, targetToken);

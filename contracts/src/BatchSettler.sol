@@ -54,6 +54,13 @@ contract BatchSettler is Ownable {
         address recipient;
     }
 
+    // ─── Custom Errors ───────────────────────────────────────────────────────
+    error BatchSettler__EmptyBatch();
+    error BatchSettler__BatchTooLarge(uint256 size, uint256 max);
+    error BatchSettler__MerchantHasNoIntent(address merchant);
+    error BatchSettler__ZeroAddress();
+    error BatchSettler__ZeroAmount();
+
     // ─── Events ──────────────────────────────────────────────────────────────
 
     /**
@@ -88,8 +95,8 @@ contract BatchSettler is Ownable {
      *      settlements to a malicious pool.
      */
     constructor(address _paymentPool, address _intentVault) Ownable(msg.sender) {
-        require(_paymentPool != address(0), "BatchSettler: paymentPool is zero address");
-        require(_intentVault != address(0), "BatchSettler: intentVault is zero address");
+        if (_paymentPool == address(0)) revert BatchSettler__ZeroAddress();
+        if (_intentVault == address(0)) revert BatchSettler__ZeroAddress();
 
         paymentPool = PaymentPool(_paymentPool);
         intentVault = IntentVault(_intentVault);
@@ -120,20 +127,15 @@ contract BatchSettler is Ownable {
         external
         onlyOwner
     {
-        require(settlements.length > 0, "BatchSettler: empty batch");
+        if (settlements.length == 0) revert BatchSettler__EmptyBatch();
 
         // Process each settlement in the batch
         for (uint256 i = 0; i < settlements.length; i++) {
             Settlement calldata s = settlements[i];
 
-            // Validation: merchant must have an intent set
-            require(intentVault.hasIntent(s.merchant), "BatchSettler: merchant has no intent");
-
-            // Validation: recipient can't be zero address
-            require(s.recipient != address(0), "BatchSettler: recipient is zero address");
-
-            // Validation: amount must be positive
-            require(s.amount > 0, "BatchSettler: amount must be positive");
+            if (!intentVault.hasIntent(s.merchant)) revert BatchSettler__MerchantHasNoIntent(s.merchant);
+            if (s.recipient == address(0)) revert BatchSettler__ZeroAddress();
+            if (s.amount == 0) revert BatchSettler__ZeroAmount();
 
             // Pull funds from PaymentPool (this will revert if insufficient balance)
             paymentPool.withdraw(s.merchant, s.token, s.amount, address(this));
