@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title IntentVault
@@ -19,7 +20,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  *       - The backend polls getIntent() too, to make matching decisions off-chain
  *         before triggering on-chain settlement.
  */
-contract IntentVault is Ownable {
+contract IntentVault is Ownable, Pausable {
     // ─── Enums ───────────────────────────────────────────────────────────────
 
     /**
@@ -106,6 +107,7 @@ contract IntentVault is Ownable {
      */
     function setIntent(SettlementSpeed speed, uint256 minBatchAmount, uint256 maxWaitTimeSeconds, address targetToken)
         external
+        whenNotPaused
     {
         if (targetToken == address(0)) revert IntentVault__ZeroAddress();
 
@@ -145,5 +147,17 @@ contract IntentVault is Ownable {
      */
     function hasIntent(address merchant) external view returns (bool) {
         return intents[merchant].exists;
+    }
+
+    // ─── Admin: Pause / Unpause ─────────────────────────────────────────────
+
+    /// @notice Owner can pause intent updates in case of emergency.
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Owner can unpause to resume normal operations.
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
