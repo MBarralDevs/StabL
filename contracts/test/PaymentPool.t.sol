@@ -80,6 +80,12 @@ contract PaymentPoolTest is Test {
         usdc.approve(address(pool), type(uint256).max);
         eurc.approve(address(pool), type(uint256).max);
         vm.stopPrank();
+
+        // Whitelist tokens for testing
+        vm.startPrank(owner);
+        pool.setTokenSupport(address(usdc), true);
+        pool.setTokenSupport(address(eurc), true);
+        vm.stopPrank();
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -149,7 +155,7 @@ contract PaymentPoolTest is Test {
     /// @notice Reverts if merchant address is zero.
     function test_receivePayment_revert_zeroMerchant() public {
         vm.startPrank(payer);
-        vm.expectRevert("PaymentPool: merchant is zero address");
+        vm.expectRevert(PaymentPool.PaymentPool__ZeroAddress.selector);
         pool.receivePayment(address(0), address(usdc), 100e6, keccak256("p1"));
         vm.stopPrank();
     }
@@ -157,7 +163,7 @@ contract PaymentPoolTest is Test {
     /// @notice Reverts if token address is zero.
     function test_receivePayment_revert_zeroToken() public {
         vm.startPrank(payer);
-        vm.expectRevert("PaymentPool: token is zero address");
+        vm.expectRevert(PaymentPool.PaymentPool__ZeroAddress.selector);
         pool.receivePayment(merchant1, address(0), 100e6, keccak256("p1"));
         vm.stopPrank();
     }
@@ -165,7 +171,7 @@ contract PaymentPoolTest is Test {
     /// @notice Reverts if amount is zero.
     function test_receivePayment_revert_zeroAmount() public {
         vm.startPrank(payer);
-        vm.expectRevert("PaymentPool: amount must be positive");
+        vm.expectRevert(PaymentPool.PaymentPool__ZeroAmount.selector);
         pool.receivePayment(merchant1, address(usdc), 0, keccak256("p1"));
         vm.stopPrank();
     }
@@ -239,7 +245,7 @@ contract PaymentPoolTest is Test {
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
         vm.prank(settler); // settler is NOT authorized yet
-        vm.expectRevert("PaymentPool: not authorized");
+        vm.expectRevert(PaymentPool.PaymentPool__NotAuthorized.selector);
         pool.withdraw(merchant1, address(usdc), 50e6, merchant1);
     }
 
@@ -252,7 +258,15 @@ contract PaymentPoolTest is Test {
         pool.receivePayment(merchant1, address(usdc), 50e6, keccak256("p1"));
 
         vm.prank(settler);
-        vm.expectRevert("PaymentPool: insufficient balance");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                PaymentPool.PaymentPool__InsufficientBalance.selector,
+                merchant1,
+                address(usdc),
+                100e6, // requested
+                50e6 // available
+            )
+        );
         pool.withdraw(merchant1, address(usdc), 100e6, merchant1);
     }
 
@@ -265,7 +279,7 @@ contract PaymentPoolTest is Test {
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
         vm.prank(settler);
-        vm.expectRevert("PaymentPool: recipient is zero address");
+        vm.expectRevert(PaymentPool.PaymentPool__ZeroAddress.selector);
         pool.withdraw(merchant1, address(usdc), 50e6, address(0));
     }
 
@@ -292,7 +306,7 @@ contract PaymentPoolTest is Test {
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
         vm.prank(settler);
-        vm.expectRevert("PaymentPool: not authorized");
+        vm.expectRevert(PaymentPool.PaymentPool__NotAuthorized.selector);
         pool.withdraw(merchant1, address(usdc), 50e6, merchant1);
     }
 
