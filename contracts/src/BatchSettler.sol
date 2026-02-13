@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import "./PaymentPool.sol";
-import "./IntentVault.sol";
+import {PaymentPool} from "./PaymentPool.sol";
+import {IntentVault} from "./IntentVault.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
@@ -34,8 +32,6 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
  *       - Merchants can't be included in a batch without their explicit intent
  */
 contract BatchSettler is Ownable, Pausable {
-    using SafeERC20 for IERC20;
-
     // ─── Structs ─────────────────────────────────────────────────────────────
 
     /**
@@ -148,11 +144,8 @@ contract BatchSettler is Ownable, Pausable {
             if (s.recipient == address(0)) revert BatchSettler__ZeroAddress();
             if (s.amount == 0) revert BatchSettler__ZeroAmount();
 
-            // Pull funds from PaymentPool (this will revert if insufficient balance)
-            paymentPool.withdraw(s.merchant, s.token, s.amount, address(this));
-
-            // Send tokens to the recipient (merchant or bridge contract)
-            IERC20(s.token).safeTransfer(s.recipient, s.amount);
+            // Pull funds from PaymentPool directly to recipient (this will revert if insufficient balance)
+            paymentPool.withdraw(s.merchant, s.token, s.amount, s.recipient);
 
             emit SettlementExecuted(batchId, s.merchant, s.token, s.amount, s.recipient);
         }
