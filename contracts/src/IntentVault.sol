@@ -66,6 +66,12 @@ contract IntentVault is Ownable {
         bool exists;
     }
 
+    // ─── Custom Errors ───────────────────────────────────────────────────────
+    error IntentVault__ZeroAddress();
+    error IntentVault__DeferredRequiresMinBatchAmount();
+    error IntentVault__StandardRequiresMaxWaitTime();
+    error IntentVault__NoIntentToDelete();
+
     // ─── Events ──────────────────────────────────────────────────────────────
 
     /// @notice Emitted whenever a merchant sets or updates their intent.
@@ -101,16 +107,16 @@ contract IntentVault is Ownable {
     function setIntent(SettlementSpeed speed, uint256 minBatchAmount, uint256 maxWaitTimeSeconds, address targetToken)
         external
     {
-        require(targetToken != address(0), "IntentVault: targetToken is zero address");
+        if (targetToken == address(0)) revert IntentVault__ZeroAddress();
 
         // Validate that DEFERRED has a meaningful threshold
         if (speed == SettlementSpeed.DEFERRED) {
-            require(minBatchAmount > 0, "IntentVault: DEFERRED requires minBatchAmount > 0");
+            if (minBatchAmount == 0) revert IntentVault__DeferredRequiresMinBatchAmount();
         }
 
         // Validate that STANDARD has a meaningful wait time
         if (speed == SettlementSpeed.STANDARD) {
-            require(maxWaitTimeSeconds > 0, "IntentVault: STANDARD requires maxWaitTimeSeconds > 0");
+            if (maxWaitTimeSeconds == 0) revert IntentVault__StandardRequiresMaxWaitTime();
         }
 
         intents[msg.sender] = MerchantIntent({
