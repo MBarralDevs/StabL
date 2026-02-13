@@ -6,6 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "./PaymentPool.sol";
 import "./IntentVault.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title BatchSettler
@@ -32,7 +33,7 @@ import "./IntentVault.sol";
  *       - The contract reads intents from IntentVault to verify settlement params
  *       - Merchants can't be included in a batch without their explicit intent
  */
-contract BatchSettler is Ownable {
+contract BatchSettler is Ownable, Pausable {
     using SafeERC20 for IERC20;
 
     // ─── Structs ─────────────────────────────────────────────────────────────
@@ -126,6 +127,7 @@ contract BatchSettler is Ownable {
     function executeBatch(bytes32 batchId, Settlement[] calldata settlements, uint256 totalGasSaved)
         external
         onlyOwner
+        whenNotPaused
     {
         if (settlements.length == 0) revert BatchSettler__EmptyBatch();
 
@@ -193,5 +195,17 @@ contract BatchSettler is Ownable {
         }
 
         return (true, 0, "");
+    }
+
+    // ─── Admin: Pause / Unpause ─────────────────────────────────────────────
+
+    /// @notice Owner can pause batch settlements in case of emergency.
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Owner can unpause to resume settlements.
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
