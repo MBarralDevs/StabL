@@ -67,6 +67,9 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
     /// @notice Emitted when a token's whitelist status changes.
     event TokenSupportUpdated(address indexed token, bool supported);
 
+    /// @notice Emitted when owner performs an emergency withdrawal.
+    event EmergencyWithdraw(address indexed token, uint256 amount);
+
     // ─── State ───────────────────────────────────────────────────────────────
 
     /// @notice Per-merchant, per-token balances.
@@ -171,6 +174,18 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
         IERC20(token).safeTransfer(recipient, amount);
 
         emit FundsWithdrawn(merchant, token, amount, recipient, msg.sender);
+    }
+
+    /// @notice Emergency: withdraw all of a specific token to the owner.
+    ///         Used for migration to a new PaymentPool contract.
+    ///         Only callable when paused — forces deliberate action.
+    /// @param token  The ERC20 token to sweep.
+    function emergencyWithdraw(address token) external onlyOwner whenPaused {
+        if (token == address(0)) revert PaymentPool__ZeroAddress();
+        uint256 contractBalance = IERC20(token).balanceOf(address(this));
+        if (contractBalance == 0) revert PaymentPool__ZeroAmount();
+        IERC20(token).safeTransfer(owner(), contractBalance);
+        emit EmergencyWithdraw(token, contractBalance);
     }
 
     // ─── View: Check Balances ────────────────────────────────────────────────

@@ -137,7 +137,8 @@ contract BatchSettler is Ownable, Pausable {
         if (settlements.length > maxBatchSize) revert BatchSettler__BatchTooLarge(settlements.length, maxBatchSize);
 
         // Process each settlement in the batch
-        for (uint256 i = 0; i < settlements.length; i++) {
+        uint256 len = settlements.length;
+        for (uint256 i; i < len;) {
             Settlement calldata s = settlements[i];
 
             if (!intentVault.hasIntent(s.merchant)) revert BatchSettler__MerchantHasNoIntent(s.merchant);
@@ -148,6 +149,9 @@ contract BatchSettler is Ownable, Pausable {
             paymentPool.withdraw(s.merchant, s.token, s.amount, s.recipient);
 
             emit SettlementExecuted(batchId, s.merchant, s.token, s.amount, s.recipient);
+            unchecked {
+                ++i;
+            }
         }
 
         emit BatchExecuted(batchId, settlements, totalGasSaved);
