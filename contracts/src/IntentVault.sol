@@ -84,6 +84,9 @@ contract IntentVault is Ownable, Pausable {
         address targetToken
     );
 
+    /// @notice Emitted when a merchant removes their intent.
+    event IntentDeleted(address indexed merchant);
+
     // ─── State ───────────────────────────────────────────────────────────────
 
     /// @notice intent per merchant address.
@@ -130,6 +133,15 @@ contract IntentVault is Ownable, Pausable {
         });
 
         emit IntentUpdated(msg.sender, speed, minBatchAmount, maxWaitTimeSeconds, targetToken);
+    }
+
+    /// @notice Merchant removes their settlement intent entirely.
+    ///         This effectively deregisters them from the batching system.
+    ///         Not gated by whenNotPaused — merchants can always opt out.
+    function deleteIntent() external {
+        if (!intents[msg.sender].exists) revert IntentVault__NoIntentToDelete();
+        delete intents[msg.sender];
+        emit IntentDeleted(msg.sender);
     }
 
     // ─── View: Read Intent ───────────────────────────────────────────────────
