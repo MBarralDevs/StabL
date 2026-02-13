@@ -61,6 +61,7 @@ contract BatchSettler is Ownable, Pausable {
     error BatchSettler__MerchantHasNoIntent(address merchant);
     error BatchSettler__ZeroAddress();
     error BatchSettler__ZeroAmount();
+    error BatchSettler__InvalidMaxBatchSize();
 
     // ─── Events ──────────────────────────────────────────────────────────────
 
@@ -81,10 +82,16 @@ contract BatchSettler is Ownable, Pausable {
         bytes32 indexed batchId, address indexed merchant, address indexed token, uint256 amount, address recipient
     );
 
+    /// @notice Emitted when the max batch size is updated.
+    event MaxBatchSizeUpdated(uint256 oldSize, uint256 newSize);
+
     // ─── State ───────────────────────────────────────────────────────────────
 
     PaymentPool public immutable paymentPool;
     IntentVault public immutable intentVault;
+    /// @notice Maximum number of settlements allowed in a single batch.
+    /// Prevents gas limit issues from oversized batches.
+    uint256 public maxBatchSize;
 
     // ─── Constructor ─────────────────────────────────────────────────────────
 
@@ -101,6 +108,7 @@ contract BatchSettler is Ownable, Pausable {
 
         paymentPool = PaymentPool(_paymentPool);
         intentVault = IntentVault(_intentVault);
+        maxBatchSize = 50; // sensible default
     }
 
     // ─── Core: Execute Batch ─────────────────────────────────────────────────
@@ -130,6 +138,7 @@ contract BatchSettler is Ownable, Pausable {
         whenNotPaused
     {
         if (settlements.length == 0) revert BatchSettler__EmptyBatch();
+        if (settlements.length > maxBatchSize) revert BatchSettler__BatchTooLarge(settlements.length, maxBatchSize);
 
         // Process each settlement in the batch
         for (uint256 i = 0; i < settlements.length; i++) {
@@ -195,6 +204,15 @@ contract BatchSettler is Ownable, Pausable {
         }
 
         return (true, 0, "");
+    }
+
+    /// @notice Owner can update the max batch size.
+    /// @param newMaxBatchSize  Must be > 0.
+    function setMaxBatchSize(uint256 newMaxBatchSize) external onlyOwner {
+        if (newMaxBatchSize == 0) revert BatchSettler__InvalidMaxBatchSize();
+        uint256 oldSize = maxBatchSize;
+        maxBatchSize = newMaxBatchSize;
+        emit MaxBatchSizeUpdated(oldSize, newMaxBatchSize);
     }
 
     // ─── Admin: Pause / Unpause ─────────────────────────────────────────────
