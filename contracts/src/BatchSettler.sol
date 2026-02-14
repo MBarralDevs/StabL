@@ -86,6 +86,9 @@ contract BatchSettler is Ownable, Pausable {
     /// @notice Emitted when fee configuration is updated.
     event FeeConfigUpdated(address indexed feeRecipient, uint256 feeBasisPoints);
 
+    /// @notice Emitted for each fee collected during settlement.
+    event FeeCollected(bytes32 indexed batchId, address indexed merchant, address indexed token, uint256 fee);
+
     // ─── State ───────────────────────────────────────────────────────────────
 
     PaymentPool public immutable paymentPool;
@@ -151,13 +154,25 @@ contract BatchSettler is Ownable, Pausable {
         uint256 len = settlements.length;
         for (uint256 i; i < len;) {
             Settlement calldata s = settlements[i];
+            uint256 fee;
+            uint256 netAmount = s.amount;
 
             if (!intentVault.hasIntent(s.merchant)) revert BatchSettler__MerchantHasNoIntent(s.merchant);
             if (s.recipient == address(0)) revert BatchSettler__ZeroAddress();
             if (s.amount == 0) revert BatchSettler__ZeroAmount();
 
-            // Pull funds from PaymentPool directly to recipient (this will revert if insufficient balance)
-            paymentPool.withdraw(s.merchant, s.token, s.amount, s.recipient);
+            if (feeBasisPoints > 0) {
+                fee = (s.amount * feeBasisPoints) / 10000;
+                netAmount = s.amount - fee;
+            }
+            // Send net amount to merchant's recipient
+            paymentPool.withdraw(s.merchant, s.token, netAmount, s.recipient);
+
+            // Send fee to StabL (if any)
+            if (fee > 0) {
+                paymentPool.withdraw(s.merchant, s.token, fee, feeRecipient);
+                emit FeeCollected(batchId, s.merchant, s.token, fee);
+            }
 
             emit SettlementExecuted(batchId, s.merchant, s.token, s.amount, s.recipient);
             unchecked {
