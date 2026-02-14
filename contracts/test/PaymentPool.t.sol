@@ -232,8 +232,8 @@ contract PaymentPoolTest is Test {
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
-        vm.expectEmit(true, true, false, true);
-        emit PaymentPool.FundsWithdrawn(merchant1, address(usdc), 100e6);
+        vm.expectEmit(true, true, true, true);
+        emit PaymentPool.FundsWithdrawn(merchant1, address(usdc), 100e6, merchant1, settler);
 
         vm.prank(settler);
         pool.withdraw(merchant1, address(usdc), 100e6, merchant1);
@@ -308,6 +308,208 @@ contract PaymentPoolTest is Test {
         vm.prank(settler);
         vm.expectRevert(PaymentPool.PaymentPool__NotAuthorized.selector);
         pool.withdraw(merchant1, address(usdc), 50e6, merchant1);
+    }
+
+    // ─── Pausable ────────────────────────────────────────────────────────────
+
+    /// @notice receivePayment reverts when paused.
+    function test_receivePayment_revert_whenPaused() public {
+        vm.prank(owner);
+        pool.pause();
+
+        vm.startPrank(payer);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+        vm.stopPrank();
+    }
+
+    /// @notice withdraw reverts when paused.
+    function test_withdraw_revert_whenPaused() public {
+        vm.prank(owner);
+        pool.setAuthorizedWithdrawer(settler, true);
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        vm.prank(owner);
+        pool.pause();
+
+        vm.prank(settler);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        pool.withdraw(merchant1, address(usdc), 50e6, merchant1);
+    }
+
+    /// @notice Operations resume after unpausing.
+    function test_unpause_resumesOperations() public {
+        vm.prank(owner);
+        pool.pause();
+
+        vm.prank(owner);
+        pool.unpause();
+
+        // Should work again
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 100e6);
+    }
+
+    /// @notice Only owner can pause.
+    function test_pause_revert_notOwner() public {
+        vm.prank(merchant1);
+        vm.expectRevert();
+        pool.pause();
+    }
+
+    /// @notice Only owner can unpause.
+    function test_unpause_revert_notOwner() public {
+        vm.prank(owner);
+        pool.pause();
+
+        vm.prank(merchant1);
+        vm.expectRevert();
+        pool.unpause();
+    }
+
+    // ─── Token Whitelist ─────────────────────────────────────────────────────
+
+    /// @notice receivePayment reverts with unsupported token.
+    function test_receivePayment_revert_unsupportedToken() public {
+        MockERC20 randomToken = new MockERC20("Random", "RND");
+        randomToken.mint(payer, 100e6);
+
+        vm.prank(payer);
+        randomToken.approve(address(pool), type(uint256).max);
+
+        vm.prank(payer);
+        vm.expectRevert(
+            abi.encodeWithSelector(PaymentPool.PaymentPool__TokenNotSupported.selector, address(randomToken))
+        );
+        pool.receivePayment(merchant1, address(randomToken), 100e6, keccak256("p1"));
+    }
+
+    /// @notice Owner can whitelist a token and deposits succeed.
+    function test_setTokenSupport_enablesDeposit() public {
+        MockERC20 newToken = new MockERC20("New", "NEW");
+        newToken.mint(payer, 100e6);
+
+        vm.prank(payer);
+        newToken.approve(address(pool), type(uint256).max);
+
+        // Not whitelisted yet — should fail
+        vm.prank(payer);
+        vm.expectRevert(abi.encodeWithSelector(PaymentPool.PaymentPool__TokenNotSupported.selector, address(newToken)));
+        pool.receivePayment(merchant1, address(newToken), 100e6, keccak256("p1"));
+
+        // Whitelist it
+        vm.prank(owner);
+        pool.setTokenSupport(address(newToken), true);
+
+        // Now it works
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(newToken), 100e6, keccak256("p2"));
+
+        assertEq(pool.getMerchantBalance(merchant1, address(newToken)), 100e6);
+    }
+
+    /// @notice Owner can delist a token, blocking new deposits.
+    function test_setTokenSupport_disablesDeposit() public {
+        vm.prank(owner);
+        pool.setTokenSupport(address(usdc), false);
+
+        vm.prank(payer);
+        vm.expectRevert(abi.encodeWithSelector(PaymentPool.PaymentPool__TokenNotSupported.selector, address(usdc)));
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+    }
+
+    /// @notice Delisting a token does NOT block withdrawals of existing balances.
+    function test_setTokenSupport_withdrawStillWorks() public {
+        vm.prank(owner);
+        pool.setAuthorizedWithdrawer(settler, true);
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        // Delist USDC
+        vm.prank(owner);
+        pool.setTokenSupport(address(usdc), false);
+
+        // Withdrawal should still work
+        vm.prank(settler);
+        pool.withdraw(merchant1, address(usdc), 100e6, merchant1);
+
+        assertEq(usdc.balanceOf(merchant1), 100e6);
+    }
+
+    /// @notice Only owner can update token support.
+    function test_setTokenSupport_revert_notOwner() public {
+        vm.prank(merchant1);
+        vm.expectRevert();
+        pool.setTokenSupport(address(usdc), true);
+    }
+
+    /// @notice setTokenSupport emits event.
+    function test_setTokenSupport_emitsEvent() public {
+        vm.expectEmit(true, false, false, true);
+        emit PaymentPool.TokenSupportUpdated(address(usdc), false);
+
+        vm.prank(owner);
+        pool.setTokenSupport(address(usdc), false);
+    }
+
+    /// @notice isTokenSupported returns correct values.
+    function test_isTokenSupported() public view {
+        assertTrue(pool.isTokenSupported(address(usdc)));
+        assertTrue(pool.isTokenSupported(address(eurc)));
+        assertFalse(pool.isTokenSupported(address(0xDEAD)));
+    }
+
+    // ─── Duplicate Payment Protection ────────────────────────────────────────
+
+    /// @notice Same paymentId used twice reverts on the second call.
+    function test_receivePayment_revert_duplicatePaymentId() public {
+        bytes32 paymentId = keccak256("duplicate-test");
+
+        vm.startPrank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, paymentId);
+
+        vm.expectRevert(abi.encodeWithSelector(PaymentPool.PaymentPool__DuplicatePayment.selector, paymentId));
+        pool.receivePayment(merchant1, address(usdc), 50e6, paymentId);
+        vm.stopPrank();
+    }
+
+    /// @notice Same paymentId to different merchants still reverts.
+    function test_receivePayment_revert_duplicatePaymentId_differentMerchant() public {
+        bytes32 paymentId = keccak256("shared-id");
+
+        vm.startPrank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, paymentId);
+
+        vm.expectRevert(abi.encodeWithSelector(PaymentPool.PaymentPool__DuplicatePayment.selector, paymentId));
+        pool.receivePayment(merchant2, address(usdc), 100e6, paymentId);
+        vm.stopPrank();
+    }
+
+    /// @notice Different paymentIds work fine.
+    function test_receivePayment_differentPaymentIds() public {
+        vm.startPrank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("id-1"));
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("id-2"));
+        vm.stopPrank();
+
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 200e6);
+    }
+
+    /// @notice isPaymentProcessed returns correct values.
+    function test_isPaymentProcessed() public {
+        bytes32 paymentId = keccak256("check-processed");
+
+        assertFalse(pool.isPaymentProcessed(paymentId));
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, paymentId);
+
+        assertTrue(pool.isPaymentProcessed(paymentId));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
