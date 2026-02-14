@@ -112,21 +112,21 @@ contract IntentVaultTest is Test {
     /// @notice Zero targetToken is rejected.
     function test_setIntent_revert_zeroTargetToken() public {
         vm.prank(merchant1);
-        vm.expectRevert("IntentVault: targetToken is zero address");
+        vm.expectRevert(IntentVault.IntentVault__ZeroAddress.selector);
         vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, address(0));
     }
 
     /// @notice DEFERRED with zero minBatchAmount is rejected.
     function test_setIntent_revert_deferredNoThreshold() public {
         vm.prank(merchant1);
-        vm.expectRevert("IntentVault: DEFERRED requires minBatchAmount > 0");
+        vm.expectRevert(IntentVault.IntentVault__DeferredRequiresMinBatchAmount.selector);
         vault.setIntent(IntentVault.SettlementSpeed.DEFERRED, 0, 0, USDC);
     }
 
     /// @notice STANDARD with zero maxWaitTime is rejected.
     function test_setIntent_revert_standardNoWaitTime() public {
         vm.prank(merchant1);
-        vm.expectRevert("IntentVault: STANDARD requires maxWaitTimeSeconds > 0");
+        vm.expectRevert(IntentVault.IntentVault__StandardRequiresMaxWaitTime.selector);
         vault.setIntent(IntentVault.SettlementSpeed.STANDARD, 0, 0, USDC);
     }
 
@@ -143,6 +143,221 @@ contract IntentVaultTest is Test {
         vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
 
         assertTrue(vault.hasIntent(merchant1));
+    }
+
+    // ─── Pausable ────────────────────────────────────────────────────────────
+
+    /// @notice setIntent reverts when paused.
+    function test_setIntent_revert_whenPaused() public {
+        vm.prank(owner);
+        vault.pause();
+
+        vm.prank(merchant1);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+    }
+
+    /// @notice deleteIntent still works when paused — merchants can always opt out.
+    function test_deleteIntent_worksWhenPaused() public {
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+
+        vm.prank(owner);
+        vault.pause();
+
+        vm.prank(merchant1);
+        vault.deleteIntent();
+
+        assertFalse(vault.hasIntent(merchant1));
+    }
+
+    /// @notice getIntent and hasIntent still work when paused.
+    function test_viewFunctions_workWhenPaused() public {
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+
+        vm.prank(owner);
+        vault.pause();
+
+        assertTrue(vault.hasIntent(merchant1));
+        assertEq(vault.getIntent(merchant1).targetToken, USDC);
+    }
+
+    /// @notice Operations resume after unpausing.
+    function test_unpause_resumesOperations() public {
+        vm.prank(owner);
+        vault.pause();
+
+        vm.prank(owner);
+        vault.unpause();
+
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+
+        assertTrue(vault.hasIntent(merchant1));
+    }
+
+    /// @notice Only owner can pause.
+    function test_pause_revert_notOwner() public {
+        vm.prank(merchant1);
+        vm.expectRevert();
+        vault.pause();
+    }
+
+    // ─── deleteIntent ────────────────────────────────────────────────────────
+
+    /// @notice Merchant can delete their intent.
+    function test_deleteIntent_basic() public {
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+
+        assertTrue(vault.hasIntent(merchant1));
+
+        vm.prank(merchant1);
+        vault.deleteIntent();
+
+        assertFalse(vault.hasIntent(merchant1));
+    }
+
+    /// @notice Deleted intent resets all fields to zero.
+    function test_deleteIntent_resetsAllFields() public {
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.DEFERRED, 1000e6, 0, USDC);
+
+        vm.prank(merchant1);
+        vault.deleteIntent();
+
+        IntentVault.MerchantIntent memory intent = vault.getIntent(merchant1);
+        assertEq(uint256(intent.speed), uint256(IntentVault.SettlementSpeed.IMMEDIATE)); // enum default = 0
+        assertEq(intent.minBatchAmount, 0);
+        assertEq(intent.maxWaitTimeSeconds, 0);
+        assertEq(intent.targetToken, address(0));
+        assertFalse(intent.exists);
+        assertEq(intent.updatedAt, 0);
+    }
+
+    /// @notice Deleting without an intent reverts.
+    function test_deleteIntent_revert_noIntent() public {
+        vm.prank(merchant1);
+        vm.expectRevert(IntentVault.IntentVault__NoIntentToDelete.selector);
+        vault.deleteIntent();
+    }
+
+    /// @notice Cannot delete the same intent twice.
+    function test_deleteIntent_revert_alreadyDeleted() public {
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+
+        vm.startPrank(merchant1);
+        vault.deleteIntent();
+
+        vm.expectRevert(IntentVault.IntentVault__NoIntentToDelete.selector);
+        vault.deleteIntent();
+        vm.stopPrank();
+    }
+
+    /// @notice Merchant can set a new intent after deleting.
+    function test_deleteIntent_thenSetAgain() public {
+        vm.startPrank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+        vault.deleteIntent();
+        vault.setIntent(IntentVault.SettlementSpeed.DEFERRED, 500e6, 0, EURC);
+        vm.stopPrank();
+
+        IntentVault.MerchantIntent memory intent = vault.getIntent(merchant1);
+        assertEq(uint256(intent.speed), uint256(IntentVault.SettlementSpeed.DEFERRED));
+        assertEq(intent.minBatchAmount, 500e6);
+        assertEq(intent.targetToken, EURC);
+        assertTrue(intent.exists);
+    }
+
+    /// @notice Deleting one merchant's intent doesn't affect another.
+    function test_deleteIntent_isolatedBetweenMerchants() public {
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+
+        vm.prank(merchant2);
+        vault.setIntent(IntentVault.SettlementSpeed.DEFERRED, 1000e6, 0, EURC);
+
+        vm.prank(merchant1);
+        vault.deleteIntent();
+
+        assertFalse(vault.hasIntent(merchant1));
+        assertTrue(vault.hasIntent(merchant2));
+        assertEq(vault.getIntent(merchant2).minBatchAmount, 1000e6);
+    }
+
+    /// @notice deleteIntent emits event.
+    function test_deleteIntent_emitsEvent() public {
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+
+        vm.expectEmit(true, false, false, false);
+        emit IntentVault.IntentDeleted(merchant1);
+
+        vm.prank(merchant1);
+        vault.deleteIntent();
+    }
+
+    // ─── updatedAt ───────────────────────────────────────────────────────────
+
+    /// @notice updatedAt is set when intent is created.
+    function test_setIntent_setsUpdatedAt() public {
+        vm.warp(1000); // set block.timestamp to 1000
+
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+
+        assertEq(vault.getIntent(merchant1).updatedAt, 1000);
+    }
+
+    /// @notice updatedAt changes when intent is updated.
+    function test_setIntent_updatesUpdatedAt() public {
+        vm.warp(1000);
+
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+
+        vm.warp(2000);
+
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.DEFERRED, 500e6, 0, EURC);
+
+        assertEq(vault.getIntent(merchant1).updatedAt, 2000);
+    }
+
+    /// @notice updatedAt is zero for non-existent intent.
+    function test_updatedAt_zeroWhenNoIntent() public view {
+        assertEq(vault.getIntent(merchant1).updatedAt, 0);
+    }
+
+    /// @notice updatedAt resets to zero after delete.
+    function test_updatedAt_resetsAfterDelete() public {
+        vm.warp(1000);
+
+        vm.startPrank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+        vault.deleteIntent();
+        vm.stopPrank();
+
+        assertEq(vault.getIntent(merchant1).updatedAt, 0);
+    }
+
+    /// @notice updatedAt is fresh after delete + re-create.
+    function test_updatedAt_freshAfterReCreate() public {
+        vm.warp(1000);
+
+        vm.prank(merchant1);
+        vault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, USDC);
+
+        vm.warp(5000);
+
+        vm.startPrank(merchant1);
+        vault.deleteIntent();
+        vault.setIntent(IntentVault.SettlementSpeed.STANDARD, 0, 3600, USDC);
+        vm.stopPrank();
+
+        assertEq(vault.getIntent(merchant1).updatedAt, 5000);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

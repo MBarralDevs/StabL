@@ -512,6 +512,101 @@ contract PaymentPoolTest is Test {
         assertTrue(pool.isPaymentProcessed(paymentId));
     }
 
+    // ─── Emergency Withdraw ──────────────────────────────────────────────────
+
+    /// @notice Owner can emergency withdraw when paused.
+    function test_emergencyWithdraw_basic() public {
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        vm.prank(payer);
+        pool.receivePayment(merchant2, address(usdc), 200e6, keccak256("p2"));
+
+        vm.startPrank(owner);
+        pool.pause();
+        pool.emergencyWithdraw(address(usdc));
+        vm.stopPrank();
+
+        // All USDC swept to owner
+        assertEq(usdc.balanceOf(owner), 300e6);
+        assertEq(usdc.balanceOf(address(pool)), 0);
+    }
+
+    /// @notice Emergency withdraw works per token.
+    function test_emergencyWithdraw_multipleTokens() public {
+        vm.startPrank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+        pool.receivePayment(merchant1, address(eurc), 50e6, keccak256("p2"));
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        pool.pause();
+        pool.emergencyWithdraw(address(usdc));
+        pool.emergencyWithdraw(address(eurc));
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(owner), 100e6);
+        assertEq(eurc.balanceOf(owner), 50e6);
+        assertEq(usdc.balanceOf(address(pool)), 0);
+        assertEq(eurc.balanceOf(address(pool)), 0);
+    }
+
+    /// @notice Emergency withdraw reverts when not paused.
+    function test_emergencyWithdraw_revert_notPaused() public {
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSignature("ExpectedPause()"));
+        pool.emergencyWithdraw(address(usdc));
+    }
+
+    /// @notice Emergency withdraw reverts when not owner.
+    function test_emergencyWithdraw_revert_notOwner() public {
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        vm.prank(owner);
+        pool.pause();
+
+        vm.prank(merchant1);
+        vm.expectRevert();
+        pool.emergencyWithdraw(address(usdc));
+    }
+
+    /// @notice Emergency withdraw reverts with zero address token.
+    function test_emergencyWithdraw_revert_zeroAddress() public {
+        vm.startPrank(owner);
+        pool.pause();
+        vm.expectRevert(PaymentPool.PaymentPool__ZeroAddress.selector);
+        pool.emergencyWithdraw(address(0));
+        vm.stopPrank();
+    }
+
+    /// @notice Emergency withdraw reverts when no balance to sweep.
+    function test_emergencyWithdraw_revert_zeroBalance() public {
+        vm.startPrank(owner);
+        pool.pause();
+        vm.expectRevert(PaymentPool.PaymentPool__ZeroAmount.selector);
+        pool.emergencyWithdraw(address(usdc));
+        vm.stopPrank();
+    }
+
+    /// @notice Emergency withdraw emits event.
+    function test_emergencyWithdraw_emitsEvent() public {
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        vm.startPrank(owner);
+        pool.pause();
+
+        vm.expectEmit(true, false, false, true);
+        emit PaymentPool.EmergencyWithdraw(address(usdc), 100e6);
+
+        pool.emergencyWithdraw(address(usdc));
+        vm.stopPrank();
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // FUZZ TESTS — random inputs to find edge cases automatically
     // ═══════════════════════════════════════════════════════════════════════════
