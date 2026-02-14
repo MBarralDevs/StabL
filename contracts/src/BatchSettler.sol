@@ -58,6 +58,8 @@ contract BatchSettler is Ownable, Pausable {
     error BatchSettler__ZeroAddress();
     error BatchSettler__ZeroAmount();
     error BatchSettler__InvalidMaxBatchSize();
+    error BatchSettler__InvalidFee();
+    error BatchSettler__FeeRecipientNotSet();
 
     // ─── Events ──────────────────────────────────────────────────────────────
 
@@ -81,6 +83,9 @@ contract BatchSettler is Ownable, Pausable {
     /// @notice Emitted when the max batch size is updated.
     event MaxBatchSizeUpdated(uint256 oldSize, uint256 newSize);
 
+    /// @notice Emitted when fee configuration is updated.
+    event FeeConfigUpdated(address indexed feeRecipient, uint256 feeBasisPoints);
+
     // ─── State ───────────────────────────────────────────────────────────────
 
     PaymentPool public immutable paymentPool;
@@ -88,6 +93,12 @@ contract BatchSettler is Ownable, Pausable {
     /// @notice Maximum number of settlements allowed in a single batch.
     /// Prevents gas limit issues from oversized batches.
     uint256 public maxBatchSize;
+
+    /// @notice Address that receives settlement fees.
+    address public feeRecipient;
+
+    /// @notice Fee in basis points (e.g., 30 = 0.30%). Max 10000 = 100%.
+    uint256 public feeBasisPoints;
 
     // ─── Constructor ─────────────────────────────────────────────────────────
 
@@ -203,6 +214,8 @@ contract BatchSettler is Ownable, Pausable {
         return (true, 0, "");
     }
 
+    // ─── Admin functions ─────────────────────────────────────────────
+
     /// @notice Owner can update the max batch size.
     /// @param newMaxBatchSize  Must be > 0.
     function setMaxBatchSize(uint256 newMaxBatchSize) external onlyOwner {
@@ -210,6 +223,17 @@ contract BatchSettler is Ownable, Pausable {
         uint256 oldSize = maxBatchSize;
         maxBatchSize = newMaxBatchSize;
         emit MaxBatchSizeUpdated(oldSize, newMaxBatchSize);
+    }
+
+    /// @notice Owner sets the fee recipient and fee percentage.
+    /// @param _feeRecipient   Address receiving fees. Can be zero to disable fees.
+    /// @param _feeBasisPoints  Fee in basis points (0-1000). 1000 = 10% hard cap.
+    function setFeeConfig(address _feeRecipient, uint256 _feeBasisPoints) external onlyOwner {
+        if (_feeBasisPoints > 1000) revert BatchSettler__InvalidFee();
+        if (_feeBasisPoints > 0 && _feeRecipient == address(0)) revert BatchSettler__FeeRecipientNotSet();
+        feeRecipient = _feeRecipient;
+        feeBasisPoints = _feeBasisPoints;
+        emit FeeConfigUpdated(_feeRecipient, _feeBasisPoints);
     }
 
     // ─── Admin: Pause / Unpause ─────────────────────────────────────────────
