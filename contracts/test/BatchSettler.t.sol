@@ -655,6 +655,174 @@ contract BatchSettlerTest is Test {
         assertEq(usdc.balanceOf(address(settler)), 0);
     }
 
+    // ─── Fee Mechanism ───────────────────────────────────────────────────────
+
+    /// @notice Settlement with fees deducts correct amounts.
+    function test_executeBatch_withFees() public {
+        vm.prank(owner);
+        settler.setFeeConfig(owner, 100); // 1% fee
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 1000e6, keccak256("p1"));
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
+        settlements[0] =
+            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1});
+
+        vm.prank(owner);
+        settler.executeBatch(keccak256("batch-fee"), settlements, 0);
+
+        // Merchant gets 990 USDC (1000 - 1%)
+        assertEq(usdc.balanceOf(merchant1), 990e6);
+        // Fee recipient gets 10 USDC
+        assertEq(usdc.balanceOf(owner), 10e6);
+        // Pool is fully drained
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 0);
+    }
+
+    /// @notice Fees work correctly across multiple merchants in one batch.
+    function test_executeBatch_withFees_multipleMerchants() public {
+        vm.prank(owner);
+        settler.setFeeConfig(owner, 50); // 0.5% fee
+
+        vm.startPrank(payer);
+        pool.receivePayment(merchant1, address(usdc), 1000e6, keccak256("p1"));
+        pool.receivePayment(merchant2, address(usdc), 2000e6, keccak256("p2"));
+        vm.stopPrank();
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
+        settlements[0] =
+            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1});
+        settlements[1] =
+            BatchSettler.Settlement({merchant: merchant2, token: address(usdc), amount: 2000e6, recipient: merchant2});
+
+        vm.prank(owner);
+        settler.executeBatch(keccak256("batch-multi-fee"), settlements, 0);
+
+        // merchant1: 1000 - 0.5% = 995
+        assertEq(usdc.balanceOf(merchant1), 995e6);
+        // merchant2: 2000 - 0.5% = 990
+        assertEq(usdc.balanceOf(merchant2), 1990e6);
+        // fee recipient: 5 + 10 = 15
+        assertEq(usdc.balanceOf(owner), 15e6);
+    }
+
+    /// @notice Zero fees means merchant gets full amount.
+    function test_executeBatch_zeroFees() public {
+        // Default: feeBasisPoints = 0, feeRecipient = address(0)
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 1000e6, keccak256("p1"));
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
+        settlements[0] =
+            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1});
+
+        vm.prank(owner);
+        settler.executeBatch(keccak256("batch-no-fee"), settlements, 0);
+
+        assertEq(usdc.balanceOf(merchant1), 1000e6);
+    }
+
+    /// @notice BatchSettler holds no tokens even with fees.
+    function test_executeBatch_withFees_settlerHoldsNothing() public {
+        vm.prank(owner);
+        settler.setFeeConfig(owner, 100);
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 1000e6, keccak256("p1"));
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
+        settlements[0] =
+            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1});
+
+        vm.prank(owner);
+        settler.executeBatch(keccak256("batch-no-hold-fee"), settlements, 0);
+
+        assertEq(usdc.balanceOf(address(settler)), 0);
+    }
+
+    /// @notice FeeCollected event is emitted.
+    function test_executeBatch_withFees_emitsEvent() public {
+        vm.prank(owner);
+        settler.setFeeConfig(owner, 100); // 1%
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 1000e6, keccak256("p1"));
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
+        settlements[0] =
+            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1});
+
+        vm.expectEmit(true, true, true, true);
+        emit BatchSettler.FeeCollected(keccak256("batch-fee-event"), merchant1, address(usdc), 10e6);
+
+        vm.prank(owner);
+        settler.executeBatch(keccak256("batch-fee-event"), settlements, 0);
+    }
+
+    // ─── setFeeConfig ────────────────────────────────────────────────────────
+
+    /// @notice Owner can set fee config.
+    function test_setFeeConfig() public {
+        vm.prank(owner);
+        settler.setFeeConfig(owner, 30);
+
+        assertEq(settler.feeRecipient(), owner);
+        assertEq(settler.feeBasisPoints(), 30);
+    }
+
+    /// @notice Fee above 10% hard cap reverts.
+    function test_setFeeConfig_revert_tooHigh() public {
+        vm.prank(owner);
+        vm.expectRevert(BatchSettler.BatchSettler__InvalidFee.selector);
+        settler.setFeeConfig(owner, 1001);
+    }
+
+    /// @notice Fee at exactly 10% cap succeeds.
+    function test_setFeeConfig_atCap() public {
+        vm.prank(owner);
+        settler.setFeeConfig(owner, 1000);
+
+        assertEq(settler.feeBasisPoints(), 1000);
+    }
+
+    /// @notice Non-zero fee with zero recipient reverts.
+    function test_setFeeConfig_revert_noRecipient() public {
+        vm.prank(owner);
+        vm.expectRevert(BatchSettler.BatchSettler__FeeRecipientNotSet.selector);
+        settler.setFeeConfig(address(0), 50);
+    }
+
+    /// @notice Zero fee with zero recipient is valid (disables fees).
+    function test_setFeeConfig_disableFees() public {
+        // First enable
+        vm.prank(owner);
+        settler.setFeeConfig(owner, 100);
+
+        // Then disable
+        vm.prank(owner);
+        settler.setFeeConfig(address(0), 0);
+
+        assertEq(settler.feeBasisPoints(), 0);
+        assertEq(settler.feeRecipient(), address(0));
+    }
+
+    /// @notice Only owner can set fee config.
+    function test_setFeeConfig_revert_notOwner() public {
+        vm.prank(merchant1);
+        vm.expectRevert();
+        settler.setFeeConfig(merchant1, 100);
+    }
+
+    /// @notice setFeeConfig emits event.
+    function test_setFeeConfig_emitsEvent() public {
+        vm.expectEmit(true, false, false, true);
+        emit BatchSettler.FeeConfigUpdated(owner, 30);
+
+        vm.prank(owner);
+        settler.setFeeConfig(owner, 30);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // FUZZ TESTS
     // ═══════════════════════════════════════════════════════════════════════════
