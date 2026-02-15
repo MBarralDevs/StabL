@@ -68,6 +68,7 @@ interface MerchantIntent {
   maxWaitTimeSeconds: bigint;
   targetToken: string;
   exists: boolean;
+  updatedAt: bigint;
 }
 
 // ─── Consumer Logic ──────────────────────────────────────────────────────────
@@ -82,6 +83,10 @@ async function checkIntent(creditedData: any): Promise<void> {
 
   console.log(`🔍 Checking intent for merchant ${merchant}`);
 
+  // Fetch current block timestamp once for all time-based checks
+  const latestBlock = await provider.getBlock('latest');
+  const currentTime = BigInt(latestBlock!.timestamp);
+
   // ─── Step 1: Get merchant's intent from IntentVault ─────────────────────
 
   let intent: MerchantIntent;
@@ -89,12 +94,13 @@ async function checkIntent(creditedData: any): Promise<void> {
   try {
     const result = await intentVault.getIntent(merchant);
     
-    intent = {
+   intent = {
       speed: Number(result.speed),
       minBatchAmount: result.minBatchAmount,
       maxWaitTimeSeconds: result.maxWaitTimeSeconds,
       targetToken: result.targetToken,
       exists: result.exists,
+      updatedAt: result.updatedAt,
     };
 
     console.log(`  📋 Intent retrieved:`, {
@@ -111,6 +117,17 @@ async function checkIntent(creditedData: any): Promise<void> {
   if (!intent.exists) {
     console.log(`  ⏭️  Merchant has no intent set, skipping`);
     return;
+  }
+
+  // Skip if intent is stale (older than 30 days)
+  const STALE_INTENT_SECONDS = 30n * 24n * 60n * 60n; // 30 days
+  if (intent.updatedAt > 0n) {
+    const intentAge = currentTime - intent.updatedAt;
+    
+    if (intentAge > STALE_INTENT_SECONDS) {
+      console.log(`  ⚠️  Intent is stale (${Number(intentAge) / 86400} days old), skipping`);
+      return;
+    }
   }
 
   // ─── Step 2: Get merchant's current balance ─────────────────────────────
@@ -139,13 +156,11 @@ async function checkIntent(creditedData: any): Promise<void> {
       break;
 
     case SettlementSpeed.STANDARD:
-      // Settle if max wait time has passed
-      // TODO: In production, track first payment timestamp in database
-      // For now, we'll use a mock check
-      shouldSettle = await mockCheckWaitTime(merchant, intent.maxWaitTimeSeconds);
-      reason = shouldSettle 
-        ? `maxWaitTimeSeconds (${intent.maxWaitTimeSeconds}s) exceeded`
-        : 'waiting for maxWaitTimeSeconds';
+      const intentAge = currentTime - intent.updatedAt;
+      shouldSettle = intentAge >= intent.maxWaitTimeSeconds;
+      reason = shouldSettle
+        ? `wait time exceeded (${intentAge}s >= ${intent.maxWaitTimeSeconds}s)`
+        : `still waiting (${intentAge}s < ${intent.maxWaitTimeSeconds}s)`;
       break;
 
     case SettlementSpeed.DEFERRED:

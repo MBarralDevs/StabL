@@ -34,3 +34,29 @@ console.log('📋 Contract addresses loaded:');
 console.log('  PaymentPool:', PAYMENT_POOL_ADDRESS);
 console.log('  IntentVault:', INTENT_VAULT_ADDRESS);
 console.log('  BatchSettler:', BATCH_SETTLER_ADDRESS);
+
+// ─── Contract Feature Detection ──────────────────────────────────────────────
+
+/**
+ * New functions available after security hardening:
+ * 
+ * PaymentPool:
+ *   - pause() / unpause()
+ *   - setTokenSupport(address, bool)
+ *   - isTokenSupported(address) 
+ *   - isPaymentProcessed(bytes32)
+ *   - emergencyWithdraw(address)
+ * 
+ * IntentVault:
+ *   - pause() / unpause()
+ *   - deleteIntent()
+ *   - MerchantIntent now includes updatedAt
+ * 
+ * BatchSettler:
+ *   - pause() / unpause()
+ *   - setMaxBatchSize(uint256)
+ *   - setFeeConfig(address, uint256)
+ *   - maxBatchSize()
+ *   - feeBasisPoints()
+ *   - feeRecipient()
+ */
