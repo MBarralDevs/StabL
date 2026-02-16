@@ -18,8 +18,8 @@ model Payment {
   merchant        String
   token           String
   amount          String
-  blockNumber     Int?     // ← Made optional with ?
-  transactionHash String?  // ← Made optional with ?
+  blockNumber     Int?
+  transactionHash String?
   
   yellowCredited  Boolean  @default(false)
   yellowCreditedAt DateTime?
@@ -28,6 +28,8 @@ model Payment {
   settlementTxHash String?
   settledAt       DateTime?
   batchId         String?
+  settlementAmount String?   // ← NEW: net amount after fee
+  settlementFee    String?   // ← NEW: fee deducted
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

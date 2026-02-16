@@ -45,6 +45,17 @@ async function processPayment(paymentData: any): Promise<void> {
 
   console.log(`📦 Processing payment ${paymentId} for merchant ${merchant}`);
 
+  // ─── Step 0: Check for duplicate payment ──────────────────────────────────
+
+  const existingPayment = await prisma.payment.findUnique({
+    where: { paymentId: paymentId.toString() },
+  });
+
+  if (existingPayment) {
+    console.log(`  ⏭️  Payment ${paymentId} already processed, skipping`);
+    return;
+  }
+
   // ─── Step 1: Credit merchant via Yellow Network ─────────────────────────
 
   try {

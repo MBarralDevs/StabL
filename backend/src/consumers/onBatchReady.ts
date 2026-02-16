@@ -107,6 +107,30 @@ async function executeBatchSettlement(request: SettlementRequest): Promise<void>
     throw error;
   }
 
+  // ─── Step 1.5: Calculate expected fee ───────────────────────────────────
+
+let feeBasisPoints: bigint;
+let feeRecipient: string;
+
+try {
+  feeBasisPoints = await batchSettler.feeBasisPoints();
+  feeRecipient = await batchSettler.feeRecipient();
+} catch (error) {
+  console.log(`   ⚠️  Could not read fee config, assuming 0`);
+  feeBasisPoints = 0n;
+  feeRecipient = ethers.ZeroAddress;
+}
+
+const fee = feeBasisPoints > 0n ? (actualBalance * feeBasisPoints) / 10000n : 0n;
+const netAmount = actualBalance - fee;
+
+console.log(`   💰 Settlement breakdown:`);
+console.log(`      Gross: ${ethers.formatUnits(actualBalance, 6)} USDC`);
+if (fee > 0n) {
+  console.log(`      Fee (${Number(feeBasisPoints)}bp): ${ethers.formatUnits(fee, 6)} USDC`);
+  console.log(`      Net to merchant: ${ethers.formatUnits(netAmount, 6)} USDC`);
+}
+
 // ─── Step 2: Prepare batch data ─────────────────────────────────────────
 
 // Create Settlement struct
@@ -125,6 +149,19 @@ console.log(`   📦 Batch prepared:`);
 console.log(`      Batch ID: ${batchId}`);
 console.log(`      Merchants: 1`);
 console.log(`      Total amount: ${ethers.formatUnits(actualBalance, 6)} USDC`);
+
+// ─── Step 2.5: Dry-run validation ───────────────────────────────────────
+
+try {
+  const [valid, errorIndex, reason] = await batchSettler.validateBatch(settlements);
+  if (!valid) {
+    console.error(`   ❌ Batch validation failed at index ${errorIndex}: ${reason}`);
+    return;
+  }
+  console.log(`   ✅ Batch pre-validated on-chain`);
+} catch (error) {
+  console.error(`   ⚠️  Validation call failed, proceeding anyway:`, error);
+}
 
 // ─── Step 3: Execute batch settlement ───────────────────────────────────
 
@@ -158,13 +195,25 @@ try {
   } catch (error: any) {
     console.error(`   ❌ Failed to execute batch:`, error.message);
     
-    // Parse revert reason if available
-    if (error.reason) {
-      console.error(`      Revert reason: ${error.reason}`);
+    // Parse custom errors from hardened contracts
+    if (error.data) {
+      try {
+        const iface = new ethers.Interface(BatchSettlerABI_Interface);
+        const decoded = iface.parseError(error.data);
+        if (decoded) {
+          console.error(`      Contract error: ${decoded.name}`);
+          console.error(`      Args:`, decoded.args);
+        }
+      } catch {
+        // Fallback to raw reason
+        if (error.reason) {
+          console.error(`      Revert reason: ${error.reason}`);
+        }
+      }
     }
     
     throw error;
-  }
+}
 
  // ─── Step 3.5: Cross-Chain Routing (if needed) ──────────────────────────
 
@@ -247,7 +296,7 @@ console.log(`    [MOCK] TxHash: ${tx.hash}`);
   // ─── Step 5: Update database ────────────────────────────────────────────
 
   try {
-    await updateDatabaseSettlement(merchant, token, actualBalance, tx.hash, batchId);
+    await updateDatabaseSettlement(merchant, token, actualBalance, netAmount, fee, tx.hash, batchId);
     console.log(`   ✅ Database updated`);
   } catch (error) {
     console.error(`   ❌ Failed to update database:`, error);
@@ -290,11 +339,12 @@ async function mockUpdateYellowSettlement(
 async function updateDatabaseSettlement(
   merchant: string,
   token: string,
-  amount: bigint,
+  grossAmount: bigint,
+  netAmount: bigint,
+  fee: bigint,
   txHash: string,
   batchId: string
 ): Promise<void> {
-  // Update all unsettled payments for this merchant
   const result = await prisma.payment.updateMany({
     where: {
       merchant,
@@ -306,10 +356,13 @@ async function updateDatabaseSettlement(
       settlementTxHash: txHash,
       settledAt: new Date(),
       batchId,
+      settlementAmount: netAmount.toString(),
+      settlementFee: fee.toString(),
     },
   });
   
   console.log(`   ✅ Database updated: ${result.count} payment(s) marked as settled`);
+  console.log(`      Gross: ${ethers.formatUnits(grossAmount, 6)} | Net: ${ethers.formatUnits(netAmount, 6)} | Fee: ${ethers.formatUnits(fee, 6)}`);
 }
 
 // ─── Consumer Loop ───────────────────────────────────────────────────────────
