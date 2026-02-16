@@ -1,6 +1,14 @@
 import express from 'express';
 import cors from 'cors';
 import { prisma } from '../services/database.js';
+import { ethers } from 'ethers';
+import { env } from '../config/env.js';
+import {
+  PaymentPoolABI_Interface,
+  BatchSettlerABI_Interface,
+  PAYMENT_POOL_ADDRESS,
+  BATCH_SETTLER_ADDRESS,
+} from '../config/contracts.js';
 
 const app = express();
 
@@ -42,13 +50,16 @@ app.get('/api/payments', async (req, res) => {
       id: p.id.toString(),
       paymentId: p.paymentId,
       merchant: p.merchant,
-      amount: formatTokenAmount(p.amount, 6), // USDC has 6 decimals
+      amount: formatTokenAmount(p.amount, 6),
       token: p.token,
       status: p.settled ? 'settled' : (p.yellowCredited ? 'credited' : 'pending'),
       yellowCredited: p.yellowCredited,
       settled: p.settled,
+      settlementAmount: p.settlementAmount ? formatTokenAmount(p.settlementAmount, 6) : null,
+      settlementFee: p.settlementFee ? formatTokenAmount(p.settlementFee, 6) : null,
       blockNumber: p.blockNumber,
       transactionHash: p.transactionHash,
+      settlementTxHash: p.settlementTxHash,
       timestamp: p.createdAt.toISOString(),
     }));
 
@@ -77,16 +88,80 @@ app.get('/api/stats', async (req, res) => {
     
     const totalVolume = formatTokenAmount(totalVolumeRaw, 6);
 
+    const settledPayments = await prisma.payment.findMany({
+      where: { settled: true },
+      select: { settlementFee: true },
+    });
+
+    const totalFeesRaw = settledPayments.reduce((sum, p) => {
+      if (!p.settlementFee) return sum;
+      return sum + BigInt(p.settlementFee);
+    }, BigInt(0));
+
+    const totalFees = formatTokenAmount(totalFeesRaw, 6);
+
     res.json({
       totalPayments,
       settledPayments: settled,
       totalVolume,
+      totalFees,
       avgSettlementTime: '<5s',
       activeChains: 3,
     });
   } catch (error) {
     console.error('Error fetching stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+
+const provider = new ethers.JsonRpcProvider(env.ARC_RPC_URL);
+
+const paymentPool = new ethers.Contract(
+  PAYMENT_POOL_ADDRESS,
+  PaymentPoolABI_Interface,
+  provider
+);
+
+const batchSettler = new ethers.Contract(
+  BATCH_SETTLER_ADDRESS,
+  BatchSettlerABI_Interface,
+  provider
+);
+
+app.get('/api/contract-status', async (req, res) => {
+  try {
+    const [
+      poolPaused,
+      settlerPaused,
+      maxBatchSize,
+      feeBasisPoints,
+      feeRecipient,
+    ] = await Promise.all([
+      paymentPool.paused(),
+      batchSettler.paused(),
+      batchSettler.maxBatchSize(),
+      batchSettler.feeBasisPoints(),
+      batchSettler.feeRecipient(),
+    ]);
+
+    res.json({
+      paymentPool: {
+        address: PAYMENT_POOL_ADDRESS,
+        paused: poolPaused,
+      },
+      batchSettler: {
+        address: BATCH_SETTLER_ADDRESS,
+        paused: settlerPaused,
+        maxBatchSize: Number(maxBatchSize),
+        feeBasisPoints: Number(feeBasisPoints),
+        feePercentage: `${Number(feeBasisPoints) / 100}%`,
+        feeRecipient,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching contract status:', error);
+    res.status(500).json({ error: 'Failed to fetch contract status' });
   }
 });
 
