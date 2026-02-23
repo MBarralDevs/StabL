@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {BaseHook} from "v4-periphery/src/utils/BaseHook.sol";
+import {BaseHook} from "uniswap-hooks/src/base/BaseHook.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
@@ -11,6 +11,7 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeS
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
 import {SafeCast} from "v4-core/src/libraries/SafeCast.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
 
 /**
  * @title PaymentSettlementHook
@@ -195,7 +196,7 @@ contract PaymentSettlementHook is BaseHook, Ownable {
      * @return BeforeSwapDelta  Zero delta — we don't modify input amounts.
      * @return uint24           Zero — we don't override the LP fee here.
      */
-    function _beforeSwap(address sender, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
+    function _beforeSwap(address sender, PoolKey calldata, SwapParams calldata, bytes calldata)
         internal
         view
         override
@@ -240,7 +241,7 @@ contract PaymentSettlementHook is BaseHook, Ownable {
     function _afterSwap(
         address sender,
         PoolKey calldata key,
-        IPoolManager.SwapParams calldata params,
+        SwapParams calldata params,
         BalanceDelta delta,
         bytes calldata hookData
     ) internal override returns (bytes4, int128) {
@@ -251,7 +252,7 @@ contract PaymentSettlementHook is BaseHook, Ownable {
             return (BaseHook.afterSwap.selector, 0);
         }
 
-        (uint256 batchSize, bytes32 batchId) = abi.decode(hookData, (uint256, bytes32));
+        (uint256 batchSize,) = abi.decode(hookData, (uint256, bytes32));
 
         if (batchSize == 0) revert Hook__InvalidBatchSize();
 
@@ -405,7 +406,7 @@ contract PaymentSettlementHook is BaseHook, Ownable {
      *
      * @param batchSize  Number of settlements in the batch.
      * @return feeBps    Fee in basis points.
-     * @return feePercent Fee as a human-readable string denominator (x100 for %).
+     * @return feePercent100 Fee as a human-readable string denominator (x100 for %).
      */
     function getExpectedFee(uint256 batchSize) external view returns (uint256 feeBps, uint256 feePercent100) {
         feeBps = calculateDynamicFee(batchSize);
