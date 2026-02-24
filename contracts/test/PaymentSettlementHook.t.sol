@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
@@ -15,7 +15,7 @@ import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
-import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
+import {SwapParams, ModifyLiquidityParams} from "v4-core/src/types/PoolOperation.sol";
 
 // Our hook
 import {PaymentSettlementHook} from "../src/PaymentSettlementHook.sol";
@@ -62,7 +62,6 @@ contract PaymentSettlementHookTest is Test {
     PoolId poolId;
 
     // ─── Actors ─────────────────────────────────────────────────────────
-    address owner = address(0x01);
     address batchSettler = address(0x02);
     address randomUser = address(0x03);
     address feeRecipient = address(0x04);
@@ -88,15 +87,20 @@ contract PaymentSettlementHookTest is Test {
         //    Our hook needs: BEFORE_SWAP | AFTER_SWAP | AFTER_SWAP_RETURNS_DELTA
         uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
 
-        bytes memory constructorArgs = abi.encode(manager, owner, feeRecipient);
+        bytes memory constructorArgs = abi.encode(manager, 50, 10, 5, feeRecipient);
         (address hookAddress, bytes32 salt) =
             HookMiner.find(address(this), flags, 0, type(PaymentSettlementHook).creationCode, constructorArgs);
 
-        hook = new PaymentSettlementHook{salt: salt}(IPoolManager(address(manager)), owner, feeRecipient);
+        hook = new PaymentSettlementHook{salt: salt}(
+            IPoolManager(address(manager)),
+            50, // baseFee (50 bps)
+            10, // minFee (10 bps)
+            5, // decayRate
+            feeRecipient
+        );
         require(address(hook) == hookAddress, "Hook address mismatch");
 
         // 4. Authorize the batchSettler
-        vm.prank(owner);
         hook.setAuthorizedSettler(batchSettler, true);
 
         // 5. Deploy test routers
@@ -127,9 +131,7 @@ contract PaymentSettlementHookTest is Test {
         // Add liquidity across a wide range
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
-            IPoolManager.ModifyLiquidityParams({
-                tickLower: -600, tickUpper: 600, liquidityDelta: 100_000e6, salt: bytes32(0)
-            }),
+            ModifyLiquidityParams({tickLower: -600, tickUpper: 600, liquidityDelta: 100_000e6, salt: bytes32(0)}),
             new bytes(0)
         );
     }
@@ -184,7 +186,6 @@ contract PaymentSettlementHookTest is Test {
 
     /// @notice Owner can revoke settler authorization
     function test_access_ownerCanRevokeSettler() public {
-        vm.prank(owner);
         hook.setAuthorizedSettler(batchSettler, false);
         assertFalse(hook.authorizedSettlers(batchSettler));
     }
@@ -198,14 +199,12 @@ contract PaymentSettlementHookTest is Test {
 
     /// @notice Fee config rejects base fee exceeding cap
     function test_access_feeConfigRejectsExcessiveBaseFee() public {
-        vm.prank(owner);
         vm.expectRevert();
         hook.setFeeConfig(600, 10, 5, feeRecipient); // 600 > MAX_BASE_FEE (500)
     }
 
     /// @notice Fee config rejects minFee > baseFee
     function test_access_feeConfigRejectsMinAboveBase() public {
-        vm.prank(owner);
         vm.expectRevert();
         hook.setFeeConfig(30, 40, 5, feeRecipient); // min(40) > base(30)
     }
@@ -216,7 +215,6 @@ contract PaymentSettlementHookTest is Test {
 
     /// @notice Owner can update fee config successfully
     function test_config_ownerCanUpdateFees() public {
-        vm.prank(owner);
         hook.setFeeConfig(40, 8, 4, feeRecipient);
 
         (uint256 fee1,) = hook.getExpectedFee(1);
@@ -225,7 +223,6 @@ contract PaymentSettlementHookTest is Test {
 
     /// @notice Fee config emits event
     function test_config_emitsFeeConfigEvent() public {
-        vm.prank(owner);
         vm.expectEmit(false, false, false, true);
         emit PaymentSettlementHook.FeeConfigUpdated(40, 8, 4, feeRecipient);
         hook.setFeeConfig(40, 8, 4, feeRecipient);
@@ -248,7 +245,7 @@ contract PaymentSettlementHookTest is Test {
         // Perform swap (exact input, USDC -> EURC)
         swapRouter.swap(
             poolKey,
-            IPoolManager.SwapParams({
+            SwapParams({
                 zeroForOne: true,
                 amountSpecified: -100e6, // exact input of 100 USDC
                 sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
@@ -270,9 +267,7 @@ contract PaymentSettlementHookTest is Test {
         vm.expectRevert();
         swapRouter.swap(
             poolKey,
-            IPoolManager.SwapParams({
-                zeroForOne: true, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
-            }),
+            SwapParams({zeroForOne: true, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             hookData
         );
@@ -298,9 +293,7 @@ contract PaymentSettlementHookTest is Test {
 
         swapRouter.swap(
             poolKey,
-            IPoolManager.SwapParams({
-                zeroForOne: true, amountSpecified: -500e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
-            }),
+            SwapParams({zeroForOne: true, amountSpecified: -500e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             hookData
         );
@@ -347,7 +340,6 @@ contract PaymentSettlementHookTest is Test {
         minFee = bound(minFee, 0, baseFee);
         decayRate = bound(decayRate, 0, baseFee);
 
-        vm.prank(owner);
         hook.setFeeConfig(baseFee, minFee, decayRate, feeRecipient);
 
         for (uint256 batch = 1; batch <= 20; batch++) {

@@ -4,7 +4,6 @@ out = 'out'
 libs = ['lib']
 test = 'test'
 script = 'script'
-solc_version = '0.8.30'
 evm_version = "cancun"
 
 remappings = [
