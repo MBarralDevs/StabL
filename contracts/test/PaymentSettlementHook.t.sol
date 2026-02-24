@@ -107,6 +107,9 @@ contract PaymentSettlementHookTest is Test {
         swapRouter = new PoolSwapTest(manager);
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
 
+        // Authorize the swap router as a settler (in V4, sender = router address)
+        hook.setAuthorizedSettler(address(swapRouter), true);
+
         // 6. Create the pool with our hook
         poolKey = PoolKey({
             currency0: currency0,
@@ -163,14 +166,12 @@ contract PaymentSettlementHookTest is Test {
         assertEq(fee100, 10, "Large batch should hit 10 bps floor");
     }
 
-    /// @notice Batch size of 0 should revert or return base fee
-    function test_fee_zeroBatchSize() public view {
-        // calculateDynamicFee(0) — with formula max(min, base - ((0-1)*decay))
-        // (0-1) underflows if unchecked. The hook should handle this gracefully.
-        // If it reverts, that's also acceptable since 0 settlements makes no sense.
-        (uint256 feeBps,) = hook.getExpectedFee(0);
-        // If the contract handles 0 gracefully, it should return baseFee
-        assertGe(feeBps, 10, "Fee should be at least minFee");
+    /// @notice Batch size of 0 reverts (underflow — 0 settlements is invalid)
+    function test_fee_zeroBatchSize() public {
+        // batchSize=0 causes underflow in (batchSize - 1), which is correct
+        // behavior since a batch of 0 settlements is invalid
+        vm.expectRevert();
+        hook.getExpectedFee(0);
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -232,28 +233,16 @@ contract PaymentSettlementHookTest is Test {
     // INTEGRATION TEST: Swap through hook (authorized settler)
     // ═════════════════════════════════════════════════════════════════════
 
-    /// @notice Authorized settler can swap through the hook
+    /// @notice Authorized settler (swap router) can swap through the hook
     function test_swap_authorizedSettlerCanSwap() public {
-        // Give settler tokens
-        usdc.mint(batchSettler, 10_000e6);
-        vm.startPrank(batchSettler);
-        usdc.approve(address(swapRouter), type(uint256).max);
-
-        // Encode hookData: (batchSize=5, batchId)
         bytes memory hookData = abi.encode(uint256(5), keccak256("batch-1"));
 
-        // Perform swap (exact input, USDC -> EURC)
         swapRouter.swap(
             poolKey,
-            SwapParams({
-                zeroForOne: true,
-                amountSpecified: -100e6, // exact input of 100 USDC
-                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
-            }),
+            SwapParams({zeroForOne: true, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             hookData
         );
-        vm.stopPrank();
     }
 
     /// @notice Unauthorized user gets reverted
@@ -280,14 +269,8 @@ contract PaymentSettlementHookTest is Test {
 
     /// @notice Settlement metrics update after a swap
     function test_analytics_metricsUpdateAfterSwap() public {
-        // Check initial state
         (uint256 settlementsBefore,,) = hook.getPoolMetrics(poolId);
         assertEq(settlementsBefore, 0, "Should start at 0 settlements");
-
-        // Execute a swap as settler
-        usdc.mint(batchSettler, 10_000e6);
-        vm.startPrank(batchSettler);
-        usdc.approve(address(swapRouter), type(uint256).max);
 
         bytes memory hookData = abi.encode(uint256(3), keccak256("batch-metrics"));
 
@@ -297,9 +280,7 @@ contract PaymentSettlementHookTest is Test {
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             hookData
         );
-        vm.stopPrank();
 
-        // Check updated metrics
         (uint256 settlementsAfter, uint256 feesAfter, uint256 volumeAfter) = hook.getPoolMetrics(poolId);
         assertEq(settlementsAfter, 3, "Should record 3 settlements from batchSize=3");
         assertGt(feesAfter, 0, "Should have collected some fees");
