@@ -288,6 +288,238 @@ contract PaymentSettlementHookTest is Test {
     }
 
     // ═════════════════════════════════════════════════════════════════════
+    // NEW INTEGRATION TESTS: _afterSwap branch coverage
+    // ═════════════════════════════════════════════════════════════════════
+
+    /// @notice Swap with empty hookData → early return, no fee, no revert
+    function test_swap_emptyHookData_earlyReturn() public {
+        // Empty hookData triggers the `hookData.length == 0` early return
+        bytes memory hookData = new bytes(0);
+
+        (uint256 settlementsBefore,,) = hook.getPoolMetrics(poolId);
+
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: true, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+
+        // Analytics should NOT update (early return skips everything)
+        (uint256 settlementsAfter,,) = hook.getPoolMetrics(poolId);
+        assertEq(settlementsAfter, settlementsBefore, "No settlements should be recorded with empty hookData");
+    }
+
+    /// @notice Swap with batchSize=0 in hookData → revert with Hook__InvalidBatchSize
+    function test_swap_batchSizeZero_reverts() public {
+        bytes memory hookData = abi.encode(uint256(0), keccak256("batch-zero"));
+
+        vm.expectRevert(); // PoolManager wraps hook reverts in WrappedError
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: true, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+    }
+
+    /// @notice Swap in the oneForZero direction (EURC→USDC) covers the else branch
+    function test_swap_oneForZero_direction() public {
+        bytes memory hookData = abi.encode(uint256(3), keccak256("batch-reverse"));
+
+        // Swap EURC → USDC (oneForZero = false means currency1 → currency0)
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: false, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+
+        // Verify analytics tracked the swap
+        (uint256 settlements, uint256 fees, uint256 volume) = hook.getPoolMetrics(poolId);
+        assertEq(settlements, 3, "Should record 3 settlements");
+        assertGt(fees, 0, "Should have collected fees");
+        assertGt(volume, 0, "Should have recorded volume");
+    }
+
+    /// @notice Swap with feeBps=0 config → no fee collected
+    function test_swap_zeroFeeConfig_noFeeCollected() public {
+        // Set baseFee=0, which means calculateDynamicFee returns 0
+        hook.setFeeConfig(0, 0, 0, feeRecipient);
+
+        bytes memory hookData = abi.encode(uint256(5), keccak256("batch-nofee"));
+
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: true, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+
+        // Settlements should update but fees should be 0
+        (uint256 settlements, uint256 fees,) = hook.getPoolMetrics(poolId);
+        assertEq(settlements, 5, "Should record 5 settlements");
+        assertEq(fees, 0, "Should have zero fees with baseFee=0");
+    }
+
+    /// @notice Multiple swaps accumulate analytics correctly
+    function test_swap_multipleSwaps_accumulateAnalytics() public {
+        bytes memory hookData1 = abi.encode(uint256(3), keccak256("batch-1"));
+        bytes memory hookData2 = abi.encode(uint256(5), keccak256("batch-2"));
+        bytes memory hookData3 = abi.encode(uint256(2), keccak256("batch-3"));
+
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: true, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData1
+        );
+
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: true, amountSpecified: -200e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData2
+        );
+
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: true, amountSpecified: -50e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData3
+        );
+
+        (uint256 settlements, uint256 fees, uint256 volume) = hook.getPoolMetrics(poolId);
+        assertEq(settlements, 10, "Should accumulate 3+5+2 = 10 settlements");
+        assertGt(fees, 0, "Should have accumulated fees across swaps");
+        assertGt(volume, 0, "Should have accumulated volume across swaps");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // NEW TESTS: Event emissions during swaps
+    // ═════════════════════════════════════════════════════════════════════
+
+    /// @notice SettlementSwapExecuted is emitted on every swap
+    function test_swap_emitsSettlementSwapExecutedEvent() public {
+        bytes memory hookData = abi.encode(uint256(3), keccak256("batch-event"));
+
+        // We expect the event with the correct poolId and settler
+        // Can't predict exact outputAmount, so we check indexed params only
+        vm.expectEmit(true, true, false, false);
+        emit PaymentSettlementHook.SettlementSwapExecuted(
+            poolId,
+            address(swapRouter),
+            0, // not checked (checkData = false)
+            0, // not checked
+            0 // not checked
+        );
+
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: true, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+    }
+
+    /// @notice SettlementFeeCollected is emitted when fee > 0
+    function test_swap_emitsSettlementFeeCollectedEvent() public {
+        bytes memory hookData = abi.encode(uint256(1), keccak256("batch-fee-event"));
+
+        // With baseFee=50 and batchSize=1, feeBps=50, so fee > 0
+        vm.expectEmit(true, true, false, false);
+        emit PaymentSettlementHook.SettlementFeeCollected(
+            poolId,
+            feeRecipient,
+            0, // not checked
+            0, // not checked
+            0 // not checked
+        );
+
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: true, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+    }
+
+    /// @notice Fee math is correct: fee = |output| * feeBps / 10000
+    function test_swap_feeAmountMathematicallyCorrect() public {
+        bytes memory hookData = abi.encode(uint256(1), keccak256("batch-math"));
+
+        // Record balances before
+        (, uint256 feesBefore, uint256 volumeBefore) = hook.getPoolMetrics(poolId);
+
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: true, amountSpecified: -10_000e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+
+        (, uint256 feesAfter, uint256 volumeAfter) = hook.getPoolMetrics(poolId);
+        uint256 actualFee = feesAfter - feesBefore;
+        uint256 actualVolume = volumeAfter - volumeBefore;
+
+        // With batchSize=1, feeBps=50
+        // Expected fee = volume * 50 / 10000 = volume * 0.005
+        uint256 expectedFee = (actualVolume * 50) / 10_000;
+
+        assertEq(actualFee, expectedFee, "Fee should be exactly volume * 50 / 10000");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // NEW TESTS: Constructor & config edge cases
+    // ═════════════════════════════════════════════════════════════════════
+
+    /// @notice Constructor with zero feeRecipient and non-zero baseFee reverts
+    function test_constructor_zeroFeeRecipient_reverts() public {
+        uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+
+        bytes memory constructorArgs = abi.encode(manager, 50, 10, 5, address(0));
+        (, bytes32 salt) =
+            HookMiner.find(address(this), flags, 1000, type(PaymentSettlementHook).creationCode, constructorArgs);
+
+        vm.expectRevert(PaymentSettlementHook.Hook__FeeRecipientNotSet.selector);
+        new PaymentSettlementHook{salt: salt}(IPoolManager(address(manager)), 50, 10, 5, address(0));
+    }
+
+    /// @notice setFeeConfig with zero feeRecipient and non-zero baseFee reverts
+    function test_config_setFeeConfig_zeroRecipient_reverts() public {
+        vm.expectRevert(PaymentSettlementHook.Hook__FeeRecipientNotSet.selector);
+        hook.setFeeConfig(50, 10, 5, address(0));
+    }
+
+    /// @notice setAuthorizedSettler emits SettlerAuthorizationUpdated event
+    function test_config_setAuthorizedSettler_emitsEvent() public {
+        address newSettler = address(0xDEAD);
+
+        vm.expectEmit(true, false, false, true);
+        emit PaymentSettlementHook.SettlerAuthorizationUpdated(newSettler, true);
+
+        hook.setAuthorizedSettler(newSettler, true);
+    }
+
+    /// @notice getPoolMetrics on untouched pool returns all zeros
+    function test_analytics_untouchedPool_returnsZeros() public view {
+        // Create a different poolId that was never swapped through
+        PoolKey memory fakeKey = PoolKey({
+            currency0: currency0,
+            currency1: currency1,
+            fee: 500, // different fee tier
+            tickSpacing: 10,
+            hooks: IHooks(address(hook))
+        });
+        PoolId fakePoolId = fakeKey.toId();
+
+        (uint256 settlements, uint256 fees, uint256 volume) = hook.getPoolMetrics(fakePoolId);
+        assertEq(settlements, 0, "Untouched pool should have 0 settlements");
+        assertEq(fees, 0, "Untouched pool should have 0 fees");
+        assertEq(volume, 0, "Untouched pool should have 0 volume");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
     // FUZZ TESTS
     // ═════════════════════════════════════════════════════════════════════
 
@@ -327,6 +559,73 @@ contract PaymentSettlementHookTest is Test {
             (uint256 fee,) = hook.getExpectedFee(batch);
             assertGe(fee, minFee, "Fee below minFee");
             assertLe(fee, baseFee, "Fee above baseFee");
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // NEW FUZZ TESTS: Through actual swaps
+    // ═════════════════════════════════════════════════════════════════════
+
+    /// @notice Fuzz: fee collected via swap is always proportional to output
+    function testFuzz_swap_feeAlwaysProportionalToOutput(uint256 swapAmount) public {
+        // Bound to reasonable amounts that won't drain the pool
+        swapAmount = bound(swapAmount, 1e6, 50_000e6);
+
+        bytes memory hookData = abi.encode(uint256(1), keccak256("fuzz-swap"));
+
+        (, uint256 feesBefore, uint256 volumeBefore) = hook.getPoolMetrics(poolId);
+
+        swapRouter.swap(
+            poolKey,
+            SwapParams({
+                zeroForOne: true, amountSpecified: -int256(swapAmount), sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+            }),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+
+        (, uint256 feesAfter, uint256 volumeAfter) = hook.getPoolMetrics(poolId);
+        uint256 fee = feesAfter - feesBefore;
+        uint256 volume = volumeAfter - volumeBefore;
+
+        if (volume > 0) {
+            // Fee should be exactly volume * 50 / 10000 (batchSize=1 → 50 bps)
+            uint256 expectedFee = (volume * 50) / 10_000;
+            assertEq(fee, expectedFee, "Fee must be proportional to output");
+        }
+    }
+
+    /// @notice Fuzz: batch sizes through actual swaps produce bounded fees
+    function testFuzz_swap_batchSizesThroughSwaps(uint256 batchSize) public {
+        batchSize = bound(batchSize, 1, 100);
+
+        bytes memory hookData = abi.encode(batchSize, keccak256("fuzz-batch"));
+
+        (, uint256 feesBefore, uint256 volumeBefore) = hook.getPoolMetrics(poolId);
+
+        swapRouter.swap(
+            poolKey,
+            SwapParams({zeroForOne: true, amountSpecified: -1000e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+
+        (uint256 settlementsAfter, uint256 feesAfter, uint256 volumeAfter) = hook.getPoolMetrics(poolId);
+        uint256 fee = feesAfter - feesBefore;
+        uint256 volume = volumeAfter - volumeBefore;
+        uint256 settlements = settlementsAfter;
+
+        // Settlements recorded should equal batchSize
+        assertEq(settlements, batchSize, "Settlements should match batchSize");
+
+        if (volume > 0 && fee > 0) {
+            // fee = volume * feeBps / 10000 (truncated)
+            // So feeBps = fee * 10000 / volume may be off by 1 due to rounding
+            uint256 impliedBps = (fee * 10_000) / volume;
+
+            // Allow +1 tolerance for integer division rounding
+            assertGe(impliedBps + 1, hook.minFee(), "Implied fee bps must be ~>= minFee");
+            assertLe(impliedBps, hook.baseFee(), "Implied fee bps must be <= baseFee");
         }
     }
 
