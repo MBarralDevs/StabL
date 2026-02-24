@@ -245,22 +245,22 @@ contract PaymentSettlementHookTest is Test {
         );
     }
 
-    /// @notice Unauthorized user gets reverted
+    /// @notice Swap through an unauthorized router gets reverted
     function test_swap_unauthorizedUserReverts() public {
-        usdc.mint(randomUser, 10_000e6);
-        vm.startPrank(randomUser);
-        usdc.approve(address(swapRouter), type(uint256).max);
+        // Deploy a SEPARATE router that is NOT authorized
+        PoolSwapTest unauthorizedRouter = new PoolSwapTest(manager);
+
+        usdc.approve(address(unauthorizedRouter), type(uint256).max);
 
         bytes memory hookData = abi.encode(uint256(1), keccak256("batch-x"));
 
         vm.expectRevert();
-        swapRouter.swap(
+        unauthorizedRouter.swap(
             poolKey,
             SwapParams({zeroForOne: true, amountSpecified: -100e6, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             hookData
         );
-        vm.stopPrank();
     }
 
     // ═════════════════════════════════════════════════════════════════════
