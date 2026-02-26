@@ -1,0 +1,511 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/PaymentSettlementHook.sol</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">src</a> - PaymentSettlementHook.sol<span style="font-size: 80%;"> (source / <a href="PaymentSettlementHook.sol.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">69</td>
+            <td class="headerCovTableEntry">71</td>
+            <td class="headerCovTableEntryHi">97.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2026-02-26 17:12:39</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntry">9</td>
+            <td class="headerCovTableEntryMed">88.9 %</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td class="headerItem">Branches:</td>
+            <td class="headerCovTableEntry">20</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntryHi">95.2 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">           Branch data     Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>                :            : // SPDX-License-Identifier: MIT</a>
+<a name="2"><span class="lineNum">       2 </span>                :            : pragma solidity ^0.8.24;</a>
+<a name="3"><span class="lineNum">       3 </span>                :            : </a>
+<a name="4"><span class="lineNum">       4 </span>                :            : import {BaseHook} from &quot;uniswap-hooks/src/base/BaseHook.sol&quot;;</a>
+<a name="5"><span class="lineNum">       5 </span>                :            : import {Hooks} from &quot;v4-core/src/libraries/Hooks.sol&quot;;</a>
+<a name="6"><span class="lineNum">       6 </span>                :            : import {IPoolManager} from &quot;v4-core/src/interfaces/IPoolManager.sol&quot;;</a>
+<a name="7"><span class="lineNum">       7 </span>                :            : import {PoolKey} from &quot;v4-core/src/types/PoolKey.sol&quot;;</a>
+<a name="8"><span class="lineNum">       8 </span>                :            : import {PoolId, PoolIdLibrary} from &quot;v4-core/src/types/PoolId.sol&quot;;</a>
+<a name="9"><span class="lineNum">       9 </span>                :            : import {BalanceDelta} from &quot;v4-core/src/types/BalanceDelta.sol&quot;;</a>
+<a name="10"><span class="lineNum">      10 </span>                :            : import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from &quot;v4-core/src/types/BeforeSwapDelta.sol&quot;;</a>
+<a name="11"><span class="lineNum">      11 </span>                :            : import {Currency, CurrencyLibrary} from &quot;v4-core/src/types/Currency.sol&quot;;</a>
+<a name="12"><span class="lineNum">      12 </span>                :            : import {SafeCast} from &quot;v4-core/src/libraries/SafeCast.sol&quot;;</a>
+<a name="13"><span class="lineNum">      13 </span>                :            : import {Ownable} from &quot;@openzeppelin/contracts/access/Ownable.sol&quot;;</a>
+<a name="14"><span class="lineNum">      14 </span>                :            : import {SwapParams} from &quot;v4-core/src/types/PoolOperation.sol&quot;;</a>
+<a name="15"><span class="lineNum">      15 </span>                :            : </a>
+<a name="16"><span class="lineNum">      16 </span>                :            : /**</a>
+<a name="17"><span class="lineNum">      17 </span>                :            :  * @title PaymentSettlementHook</a>
+<a name="18"><span class="lineNum">      18 </span>                :            :  * @notice A Uniswap V4 hook that enables trustless cross-token settlement</a>
+<a name="19"><span class="lineNum">      19 </span>                :            :  *         with dynamic batch-size-dependent fees for StabL Gateway.</a>
+<a name="20"><span class="lineNum">      20 </span>                :            :  *</a>
+<a name="21"><span class="lineNum">      21 </span>                :            :  * @dev  How it fits in the architecture:</a>
+<a name="22"><span class="lineNum">      22 </span>                :            :  *</a>
+<a name="23"><span class="lineNum">      23 </span>                :            :  *       1. Customer pays merchant in USDC (lands in PaymentPool on Arc)</a>
+<a name="24"><span class="lineNum">      24 </span>                :            :  *       2. Merchant's intent says they want EURC</a>
+<a name="25"><span class="lineNum">      25 </span>                :            :  *       3. BatchSettler calls PoolManager.swap() on the USDC/EURC pool</a>
+<a name="26"><span class="lineNum">      26 </span>                :            :  *       4. This hook intercepts the swap:</a>
+<a name="27"><span class="lineNum">      27 </span>                :            :  *          - beforeSwap: validates the caller is an authorized settler</a>
+<a name="28"><span class="lineNum">      28 </span>                :            :  *          - afterSwap: collects a dynamic fee from the output amount</a>
+<a name="29"><span class="lineNum">      29 </span>                :            :  *       5. The fee decreases as batch size increases (carpool incentive)</a>
+<a name="30"><span class="lineNum">      30 </span>                :            :  *</a>
+<a name="31"><span class="lineNum">      31 </span>                :            :  *       Same-token settlements (USDC→USDC) bypass the pool entirely</a>
+<a name="32"><span class="lineNum">      32 </span>                :            :  *       and go through BatchSettler's direct transfer path.</a>
+<a name="33"><span class="lineNum">      33 </span>                :            :  *</a>
+<a name="34"><span class="lineNum">      34 </span>                :            :  * @dev  Dynamic Fee Model:</a>
+<a name="35"><span class="lineNum">      35 </span>                :            :  *       The fee is NOT a fixed percentage. It decreases with batch size:</a>
+<a name="36"><span class="lineNum">      36 </span>                :            :  *</a>
+<a name="37"><span class="lineNum">      37 </span>                :            :  *       - 1 settlement  → baseFee (e.g. 50bp = 0.50%)</a>
+<a name="38"><span class="lineNum">      38 </span>                :            :  *       - 5 settlements → ~30bp</a>
+<a name="39"><span class="lineNum">      39 </span>                :            :  *       - 10 settlements → ~20bp</a>
+<a name="40"><span class="lineNum">      40 </span>                :            :  *       - 20+ settlements → minFee (e.g. 10bp = 0.10%)</a>
+<a name="41"><span class="lineNum">      41 </span>                :            :  *</a>
+<a name="42"><span class="lineNum">      42 </span>                :            :  *       Formula: fee = max(minFee, baseFee - (batchSize * decayRate))</a>
+<a name="43"><span class="lineNum">      43 </span>                :            :  *</a>
+<a name="44"><span class="lineNum">      44 </span>                :            :  *       This incentivizes merchants to batch together, which is the</a>
+<a name="45"><span class="lineNum">      45 </span>                :            :  *       core &quot;carpool&quot; value proposition of StabL.</a>
+<a name="46"><span class="lineNum">      46 </span>                :            :  *</a>
+<a name="47"><span class="lineNum">      47 </span>                :            :  * @dev  Security:</a>
+<a name="48"><span class="lineNum">      48 </span>                :            :  *       - Only authorized settlers can trigger swaps through this hook</a>
+<a name="49"><span class="lineNum">      49 </span>                :            :  *       - Fee parameters are owner-configurable with hard caps</a>
+<a name="50"><span class="lineNum">      50 </span>                :            :  *       - Hook validates batch context via hookData parameter</a>
+<a name="51"><span class="lineNum">      51 </span>                :            :  *       - All fees go to a configurable feeRecipient address</a>
+<a name="52"><span class="lineNum">      52 </span>                :            :  */</a>
+<a name="53"><span class="lineNum">      53 </span>                :            : contract PaymentSettlementHook is BaseHook, Ownable {</a>
+<a name="54"><span class="lineNum">      54 </span>                :            :     using PoolIdLibrary for PoolKey;</a>
+<a name="55"><span class="lineNum">      55 </span>                :            :     using CurrencyLibrary for Currency;</a>
+<a name="56"><span class="lineNum">      56 </span>                :            :     using SafeCast for uint256;</a>
+<a name="57"><span class="lineNum">      57 </span>                :            : </a>
+<a name="58"><span class="lineNum">      58 </span>                :            :     // ─── Custom Errors ──────────────────────────────────────────────────</a>
+<a name="59"><span class="lineNum">      59 </span>                :            : </a>
+<a name="60"><span class="lineNum">      60 </span>                :            :     error Hook__UnauthorizedSettler(address caller);</a>
+<a name="61"><span class="lineNum">      61 </span>                :            :     error Hook__InvalidBatchSize();</a>
+<a name="62"><span class="lineNum">      62 </span>                :            :     error Hook__InvalidFeeConfig();</a>
+<a name="63"><span class="lineNum">      63 </span>                :            :     error Hook__FeeRecipientNotSet();</a>
+<a name="64"><span class="lineNum">      64 </span>                :            :     error Hook__BaseFeeExceedsCap(uint256 baseFee, uint256 cap);</a>
+<a name="65"><span class="lineNum">      65 </span>                :            :     error Hook__MinFeeExceedsBaseFee(uint256 minFee, uint256 baseFee);</a>
+<a name="66"><span class="lineNum">      66 </span>                :            : </a>
+<a name="67"><span class="lineNum">      67 </span>                :            :     // ─── Events ─────────────────────────────────────────────────────────</a>
+<a name="68"><span class="lineNum">      68 </span>                :            : </a>
+<a name="69"><span class="lineNum">      69 </span>                :            :     /// @notice Emitted when a settlement swap is executed through the hook.</a>
+<a name="70"><span class="lineNum">      70 </span>                :            :     event SettlementSwapExecuted(</a>
+<a name="71"><span class="lineNum">      71 </span>                :            :         PoolId indexed poolId, address indexed settler, uint256 batchSize, uint256 feeBps, int256 outputAmount</a>
+<a name="72"><span class="lineNum">      72 </span>                :            :     );</a>
+<a name="73"><span class="lineNum">      73 </span>                :            : </a>
+<a name="74"><span class="lineNum">      74 </span>                :            :     /// @notice Emitted when the dynamic fee is collected after a swap.</a>
+<a name="75"><span class="lineNum">      75 </span>                :            :     event SettlementFeeCollected(</a>
+<a name="76"><span class="lineNum">      76 </span>                :            :         PoolId indexed poolId, address indexed feeRecipient, uint256 feeAmount, uint256 batchSize, uint256 appliedFeeBps</a>
+<a name="77"><span class="lineNum">      77 </span>                :            :     );</a>
+<a name="78"><span class="lineNum">      78 </span>                :            : </a>
+<a name="79"><span class="lineNum">      79 </span>                :            :     /// @notice Emitted when fee configuration is updated.</a>
+<a name="80"><span class="lineNum">      80 </span>                :            :     event FeeConfigUpdated(uint256 baseFee, uint256 minFee, uint256 decayRate, address feeRecipient);</a>
+<a name="81"><span class="lineNum">      81 </span>                :            : </a>
+<a name="82"><span class="lineNum">      82 </span>                :            :     /// @notice Emitted when a settler is authorized or revoked.</a>
+<a name="83"><span class="lineNum">      83 </span>                :            :     event SettlerAuthorizationUpdated(address indexed settler, bool authorized);</a>
+<a name="84"><span class="lineNum">      84 </span>                :            : </a>
+<a name="85"><span class="lineNum">      85 </span>                :            :     // ─── Constants ──────────────────────────────────────────────────────</a>
+<a name="86"><span class="lineNum">      86 </span>                :            : </a>
+<a name="87"><span class="lineNum">      87 </span>                :            :     /// @notice Maximum allowed base fee: 5% (500 basis points).</a>
+<a name="88"><span class="lineNum">      88 </span>                :            :     ///         This is a hard cap that cannot be exceeded even by the owner.</a>
+<a name="89"><span class="lineNum">      89 </span>                :            :     uint256 public constant MAX_BASE_FEE = 500;</a>
+<a name="90"><span class="lineNum">      90 </span>                :            : </a>
+<a name="91"><span class="lineNum">      91 </span>                :            :     /// @notice Basis points denominator (10000 = 100%).</a>
+<a name="92"><span class="lineNum">      92 </span>                :            :     uint256 public constant BPS_DENOMINATOR = 10_000;</a>
+<a name="93"><span class="lineNum">      93 </span>                :            : </a>
+<a name="94"><span class="lineNum">      94 </span>                :            :     // ─── State ──────────────────────────────────────────────────────────</a>
+<a name="95"><span class="lineNum">      95 </span>                :            : </a>
+<a name="96"><span class="lineNum">      96 </span>                :            :     /// @notice Addresses authorized to execute settlements through this hook.</a>
+<a name="97"><span class="lineNum">      97 </span>                :            :     ///         Typically only the BatchSettler contract.</a>
+<a name="98"><span class="lineNum">      98 </span>                :            :     mapping(address =&gt; bool) public authorizedSettlers;</a>
+<a name="99"><span class="lineNum">      99 </span>                :            : </a>
+<a name="100"><span class="lineNum">     100 </span>                :            :     /// @notice Base fee in basis points for a single settlement (highest fee).</a>
+<a name="101"><span class="lineNum">     101 </span>                :            :     uint256 public baseFee;</a>
+<a name="102"><span class="lineNum">     102 </span>                :            : </a>
+<a name="103"><span class="lineNum">     103 </span>                :            :     /// @notice Minimum fee in basis points (floor, even for huge batches).</a>
+<a name="104"><span class="lineNum">     104 </span>                :            :     uint256 public minFee;</a>
+<a name="105"><span class="lineNum">     105 </span>                :            : </a>
+<a name="106"><span class="lineNum">     106 </span>                :            :     /// @notice How many basis points the fee decreases per additional settlement.</a>
+<a name="107"><span class="lineNum">     107 </span>                :            :     uint256 public decayRate;</a>
+<a name="108"><span class="lineNum">     108 </span>                :            : </a>
+<a name="109"><span class="lineNum">     109 </span>                :            :     /// @notice Address that receives collected fees.</a>
+<a name="110"><span class="lineNum">     110 </span>                :            :     address public feeRecipient;</a>
+<a name="111"><span class="lineNum">     111 </span>                :            : </a>
+<a name="112"><span class="lineNum">     112 </span>                :            :     // ─── Per-Pool Metrics (for analytics/frontend) ──────────────────────</a>
+<a name="113"><span class="lineNum">     113 </span>                :            : </a>
+<a name="114"><span class="lineNum">     114 </span>                :            :     /// @notice Total settlements processed through each pool.</a>
+<a name="115"><span class="lineNum">     115 </span>                :            :     mapping(PoolId =&gt; uint256) public totalSettlements;</a>
+<a name="116"><span class="lineNum">     116 </span>                :            : </a>
+<a name="117"><span class="lineNum">     117 </span>                :            :     /// @notice Total fees collected per pool (in output token units).</a>
+<a name="118"><span class="lineNum">     118 </span>                :            :     mapping(PoolId =&gt; uint256) public totalFeesCollected;</a>
+<a name="119"><span class="lineNum">     119 </span>                :            : </a>
+<a name="120"><span class="lineNum">     120 </span>                :            :     /// @notice Total volume swapped through each pool.</a>
+<a name="121"><span class="lineNum">     121 </span>                :            :     mapping(PoolId =&gt; uint256) public totalVolumeSwapped;</a>
+<a name="122"><span class="lineNum">     122 </span>                :            : </a>
+<a name="123"><span class="lineNum">     123 </span>                :            :     // ─── Constructor ────────────────────────────────────────────────────</a>
+<a name="124"><span class="lineNum">     124 </span>                :            : </a>
+<a name="125"><span class="lineNum">     125 </span>                :            :     /**</a>
+<a name="126"><span class="lineNum">     126 </span>                :            :      * @notice Deploys the hook and sets initial fee configuration.</a>
+<a name="127"><span class="lineNum">     127 </span>                :            :      *</a>
+<a name="128"><span class="lineNum">     128 </span>                :            :      * @param _poolManager  Uniswap V4 PoolManager address.</a>
+<a name="129"><span class="lineNum">     129 </span>                :            :      * @param _baseFee      Starting fee in bps for a batch of 1 (e.g. 50 = 0.50%).</a>
+<a name="130"><span class="lineNum">     130 </span>                :            :      * @param _minFee       Floor fee in bps (e.g. 10 = 0.10%).</a>
+<a name="131"><span class="lineNum">     131 </span>                :            :      * @param _decayRate    Bps reduction per additional settlement (e.g. 5).</a>
+<a name="132"><span class="lineNum">     132 </span>                :            :      * @param _feeRecipient Address that receives fees.</a>
+<a name="133"><span class="lineNum">     133 </span>                :            :      */</a>
+<a name="134"><span class="lineNum">     134 </span>                :<span class="lineCov">         40 :     constructor(IPoolManager _poolManager, uint256 _baseFee, uint256 _minFee, uint256 _decayRate, address _feeRecipient)</span></a>
+<a name="135"><span class="lineNum">     135 </span>                :            :         BaseHook(_poolManager)</a>
+<a name="136"><span class="lineNum">     136 </span>                :            :         Ownable(msg.sender)</a>
+<a name="137"><span class="lineNum">     137 </span>                :            :     {</a>
+<a name="138"><span class="lineNum">     138 </span>                :            :         // Validate fee config at construction</a>
+<a name="139"><span class="lineNum">     139 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">         40 :         if (_baseFee &gt; MAX_BASE_FEE) revert Hook__BaseFeeExceedsCap(_baseFee, MAX_BASE_FEE);</span></a>
+<a name="140"><span class="lineNum">     140 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">         39 :         if (_minFee &gt; _baseFee) revert Hook__MinFeeExceedsBaseFee(_minFee, _baseFee);</span></a>
+<a name="141"><span class="lineNum">     141 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">         38 :         if (_baseFee &gt; 0 &amp;&amp; _feeRecipient == address(0)) revert Hook__FeeRecipientNotSet();</span></a>
+<a name="142"><span class="lineNum">     142 </span>                :            : </a>
+<a name="143"><span class="lineNum">     143 </span>                :<span class="lineCov">         37 :         baseFee = _baseFee;</span></a>
+<a name="144"><span class="lineNum">     144 </span>                :<span class="lineCov">         37 :         minFee = _minFee;</span></a>
+<a name="145"><span class="lineNum">     145 </span>                :<span class="lineCov">         37 :         decayRate = _decayRate;</span></a>
+<a name="146"><span class="lineNum">     146 </span>                :<span class="lineCov">         37 :         feeRecipient = _feeRecipient;</span></a>
+<a name="147"><span class="lineNum">     147 </span>                :            : </a>
+<a name="148"><span class="lineNum">     148 </span>                :<span class="lineCov">         37 :         emit FeeConfigUpdated(_baseFee, _minFee, _decayRate, _feeRecipient);</span></a>
+<a name="149"><span class="lineNum">     149 </span>                :            :     }</a>
+<a name="150"><span class="lineNum">     150 </span>                :            : </a>
+<a name="151"><span class="lineNum">     151 </span>                :            :     // ─── Hook Permissions ───────────────────────────────────────────────</a>
+<a name="152"><span class="lineNum">     152 </span>                :            : </a>
+<a name="153"><span class="lineNum">     153 </span>                :            :     /**</a>
+<a name="154"><span class="lineNum">     154 </span>                :            :      * @notice Declares which hook callbacks this contract implements.</a>
+<a name="155"><span class="lineNum">     155 </span>                :            :      *</a>
+<a name="156"><span class="lineNum">     156 </span>                :            :      * @dev We use:</a>
+<a name="157"><span class="lineNum">     157 </span>                :            :      *      - beforeSwap: to validate that only authorized settlers trigger swaps</a>
+<a name="158"><span class="lineNum">     158 </span>                :            :      *      - afterSwap: to collect the dynamic fee from swap output</a>
+<a name="159"><span class="lineNum">     159 </span>                :            :      *</a>
+<a name="160"><span class="lineNum">     160 </span>                :            :      *      We enable afterSwapReturnDelta so the hook can &quot;take&quot; a portion</a>
+<a name="161"><span class="lineNum">     161 </span>                :            :      *      of the swap output as a fee, modifying what the swapper receives.</a>
+<a name="162"><span class="lineNum">     162 </span>                :            :      */</a>
+<a name="163"><span class="lineNum">     163 </span>                :<span class="lineCov">         40 :     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {</span></a>
+<a name="164"><span class="lineNum">     164 </span>                :<span class="lineCov">         40 :         return Hooks.Permissions({</span></a>
+<a name="165"><span class="lineNum">     165 </span>                :            :             beforeInitialize: false,</a>
+<a name="166"><span class="lineNum">     166 </span>                :            :             afterInitialize: false,</a>
+<a name="167"><span class="lineNum">     167 </span>                :            :             beforeAddLiquidity: false,</a>
+<a name="168"><span class="lineNum">     168 </span>                :            :             afterAddLiquidity: false,</a>
+<a name="169"><span class="lineNum">     169 </span>                :            :             beforeRemoveLiquidity: false,</a>
+<a name="170"><span class="lineNum">     170 </span>                :            :             afterRemoveLiquidity: false,</a>
+<a name="171"><span class="lineNum">     171 </span>                :            :             beforeSwap: true,</a>
+<a name="172"><span class="lineNum">     172 </span>                :            :             afterSwap: true,</a>
+<a name="173"><span class="lineNum">     173 </span>                :            :             beforeDonate: false,</a>
+<a name="174"><span class="lineNum">     174 </span>                :            :             afterDonate: false,</a>
+<a name="175"><span class="lineNum">     175 </span>                :            :             beforeSwapReturnDelta: false,</a>
+<a name="176"><span class="lineNum">     176 </span>                :            :             afterSwapReturnDelta: true, // We take a cut of swap output</a>
+<a name="177"><span class="lineNum">     177 </span>                :            :             afterAddLiquidityReturnDelta: false,</a>
+<a name="178"><span class="lineNum">     178 </span>                :            :             afterRemoveLiquidityReturnDelta: false</a>
+<a name="179"><span class="lineNum">     179 </span>                :            :         });</a>
+<a name="180"><span class="lineNum">     180 </span>                :            :     }</a>
+<a name="181"><span class="lineNum">     181 </span>                :            : </a>
+<a name="182"><span class="lineNum">     182 </span>                :            :     // ─── Core Hook Callbacks ────────────────────────────────────────────</a>
+<a name="183"><span class="lineNum">     183 </span>                :            : </a>
+<a name="184"><span class="lineNum">     184 </span>                :            :     /**</a>
+<a name="185"><span class="lineNum">     185 </span>                :            :      * @notice Called before every swap on pools using this hook.</a>
+<a name="186"><span class="lineNum">     186 </span>                :            :      *</a>
+<a name="187"><span class="lineNum">     187 </span>                :            :      * @dev  Validates that the caller (sender) is an authorized settler.</a>
+<a name="188"><span class="lineNum">     188 </span>                :            :      *       This prevents random users from swapping through our settlement</a>
+<a name="189"><span class="lineNum">     189 </span>                :            :      *       pools and getting the batch fee discount.</a>
+<a name="190"><span class="lineNum">     190 </span>                :            :      *</a>
+<a name="191"><span class="lineNum">     191 </span>                :            :      *       The `sender` parameter is the address that called PoolManager.swap(),</a>
+<a name="192"><span class="lineNum">     192 </span>                :            :      *       which in our case is the BatchSettler (or a router acting on its behalf).</a>
+<a name="193"><span class="lineNum">     193 </span>                :            :      *</a>
+<a name="194"><span class="lineNum">     194 </span>                :            :      * @param sender   The address that initiated the swap (BatchSettler).</a>
+<a name="195"><span class="lineNum">     195 </span>                :            :      * @return bytes4           The function selector (required by V4).</a>
+<a name="196"><span class="lineNum">     196 </span>                :            :      * @return BeforeSwapDelta  Zero delta — we don't modify input amounts.</a>
+<a name="197"><span class="lineNum">     197 </span>                :            :      * @return uint24           Zero — we don't override the LP fee here.</a>
+<a name="198"><span class="lineNum">     198 </span>                :            :      */</a>
+<a name="199"><span class="lineNum">     199 </span>                :<span class="lineCov">        527 :     function _beforeSwap(address sender, PoolKey calldata, SwapParams calldata, bytes calldata)</span></a>
+<a name="200"><span class="lineNum">     200 </span>                :            :         internal</a>
+<a name="201"><span class="lineNum">     201 </span>                :            :         view</a>
+<a name="202"><span class="lineNum">     202 </span>                :            :         override</a>
+<a name="203"><span class="lineNum">     203 </span>                :            :         returns (bytes4, BeforeSwapDelta, uint24)</a>
+<a name="204"><span class="lineNum">     204 </span>                :            :     {</a>
+<a name="205"><span class="lineNum">     205 </span>                :            :         // Only authorized settlers can swap through settlement pools</a>
+<a name="206"><span class="lineNum">     206 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        527 :         if (!authorizedSettlers[sender]) {</span></a>
+<a name="207"><span class="lineNum">     207 </span>                :<span class="lineCov">          1 :             revert Hook__UnauthorizedSettler(sender);</span></a>
+<a name="208"><span class="lineNum">     208 </span>                :            :         }</a>
+<a name="209"><span class="lineNum">     209 </span>                :            : </a>
+<a name="210"><span class="lineNum">     210 </span>                :<span class="lineCov">        526 :         return (</span></a>
+<a name="211"><span class="lineNum">     211 </span>                :            :             BaseHook.beforeSwap.selector,</a>
+<a name="212"><span class="lineNum">     212 </span>                :            :             BeforeSwapDeltaLibrary.ZERO_DELTA,</a>
+<a name="213"><span class="lineNum">     213 </span>                :            :             0 // no LP fee override</a>
+<a name="214"><span class="lineNum">     214 </span>                :            :         );</a>
+<a name="215"><span class="lineNum">     215 </span>                :            :     }</a>
+<a name="216"><span class="lineNum">     216 </span>                :            : </a>
+<a name="217"><span class="lineNum">     217 </span>                :            :     /**</a>
+<a name="218"><span class="lineNum">     218 </span>                :            :      * @notice Called after every swap on pools using this hook.</a>
+<a name="219"><span class="lineNum">     219 </span>                :            :      *</a>
+<a name="220"><span class="lineNum">     220 </span>                :            :      * @dev  This is where the magic happens:</a>
+<a name="221"><span class="lineNum">     221 </span>                :            :      *       1. Decode the batch size from hookData</a>
+<a name="222"><span class="lineNum">     222 </span>                :            :      *       2. Calculate the dynamic fee based on batch size</a>
+<a name="223"><span class="lineNum">     223 </span>                :            :      *       3. Take the fee from the swap output</a>
+<a name="224"><span class="lineNum">     224 </span>                :            :      *       4. Update analytics metrics</a>
+<a name="225"><span class="lineNum">     225 </span>                :            :      *       5. Emit events for backend tracking</a>
+<a name="226"><span class="lineNum">     226 </span>                :            :      *</a>
+<a name="227"><span class="lineNum">     227 </span>                :            :      *       The hookData is ABI-encoded by the BatchSettler when calling swap:</a>
+<a name="228"><span class="lineNum">     228 </span>                :            :      *       hookData = abi.encode(batchSize, batchId)</a>
+<a name="229"><span class="lineNum">     229 </span>                :            :      *</a>
+<a name="230"><span class="lineNum">     230 </span>                :            :      *       The return value (int128) is the amount the hook &quot;takes&quot; from</a>
+<a name="231"><span class="lineNum">     231 </span>                :            :      *       the output. Positive = hook takes from output (reduces what swapper gets).</a>
+<a name="232"><span class="lineNum">     232 </span>                :            :      *</a>
+<a name="233"><span class="lineNum">     233 </span>                :            :      * @param sender    The settler address that initiated the swap.</a>
+<a name="234"><span class="lineNum">     234 </span>                :            :      * @param key       The pool key (token pair, fee, hook).</a>
+<a name="235"><span class="lineNum">     235 </span>                :            :      * @param params    Swap parameters (direction, amount, etc.).</a>
+<a name="236"><span class="lineNum">     236 </span>                :            :      * @param delta     The balance delta from the swap (how much in/out).</a>
+<a name="237"><span class="lineNum">     237 </span>                :            :      * @param hookData  ABI-encoded (uint256 batchSize, bytes32 batchId).</a>
+<a name="238"><span class="lineNum">     238 </span>                :            :      * @return bytes4   The function selector.</a>
+<a name="239"><span class="lineNum">     239 </span>                :            :      * @return int128   The amount taken from output (fee).</a>
+<a name="240"><span class="lineNum">     240 </span>                :            :      */</a>
+<a name="241"><span class="lineNum">     241 </span>                :<span class="lineCov">        526 :     function _afterSwap(</span></a>
+<a name="242"><span class="lineNum">     242 </span>                :            :         address sender,</a>
+<a name="243"><span class="lineNum">     243 </span>                :            :         PoolKey calldata key,</a>
+<a name="244"><span class="lineNum">     244 </span>                :            :         SwapParams calldata params,</a>
+<a name="245"><span class="lineNum">     245 </span>                :            :         BalanceDelta delta,</a>
+<a name="246"><span class="lineNum">     246 </span>                :            :         bytes calldata hookData</a>
+<a name="247"><span class="lineNum">     247 </span>                :            :     ) internal override returns (bytes4, int128) {</a>
+<a name="248"><span class="lineNum">     248 </span>                :            :         // ─── Step 1: Decode batch context from hookData ─────────────</a>
+<a name="249"><span class="lineNum">     249 </span>                :            : </a>
+<a name="250"><span class="lineNum">     250 </span>                :            :         // If no hookData provided, no fee (shouldn't happen with authorized settlers)</a>
+<a name="251"><span class="lineNum">     251 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        526 :         if (hookData.length == 0) {</span></a>
+<a name="252"><span class="lineNum">     252 </span>                :<span class="lineCov">          1 :             return (BaseHook.afterSwap.selector, 0);</span></a>
+<a name="253"><span class="lineNum">     253 </span>                :            :         }</a>
+<a name="254"><span class="lineNum">     254 </span>                :            : </a>
+<a name="255"><span class="lineNum">     255 </span>                :<span class="lineCov">        525 :         (uint256 batchSize,) = abi.decode(hookData, (uint256, bytes32));</span></a>
+<a name="256"><span class="lineNum">     256 </span>                :            : </a>
+<a name="257"><span class="lineNum">     257 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        525 :         if (batchSize == 0) revert Hook__InvalidBatchSize();</span></a>
+<a name="258"><span class="lineNum">     258 </span>                :            : </a>
+<a name="259"><span class="lineNum">     259 </span>                :            :         // ─── Step 2: Calculate dynamic fee ──────────────────────────</a>
+<a name="260"><span class="lineNum">     260 </span>                :            : </a>
+<a name="261"><span class="lineNum">     261 </span>                :<span class="lineCov">        524 :         uint256 feeBps = calculateDynamicFee(batchSize);</span></a>
+<a name="262"><span class="lineNum">     262 </span>                :            : </a>
+<a name="263"><span class="lineNum">     263 </span>                :            :         // ─── Step 3: Determine output amount and take fee ───────────</a>
+<a name="264"><span class="lineNum">     264 </span>                :            : </a>
+<a name="265"><span class="lineNum">     265 </span>                :            :         // The output token amount from the swap.</a>
+<a name="266"><span class="lineNum">     266 </span>                :            :         // With afterSwapReturnDelta enabled, V4 may pass the output as</a>
+<a name="267"><span class="lineNum">     267 </span>                :            :         // a positive int128 (tokens owed to swapper) rather than negative.</a>
+<a name="268"><span class="lineNum">     268 </span>                :            :         // We handle both conventions.</a>
+<a name="269"><span class="lineNum">     269 </span>                :<span class="lineCov">        524 :         int128 rawDelta;</span></a>
+<a name="270"><span class="lineNum">     270 </span>        [<span class="branchCov" title="Branch 0 was taken 523 times"> + </span><span class="branchCov" title="Branch 1 was taken 1 time"> + </span>]:<span class="lineCov">        523 :         if (params.zeroForOne) {</span></a>
+<a name="271"><span class="lineNum">     271 </span>                :<span class="lineCov">        523 :             rawDelta = delta.amount1();</span></a>
+<a name="272"><span class="lineNum">     272 </span>                :            :         } else {</a>
+<a name="273"><span class="lineNum">     273 </span>                :<span class="lineCov">          1 :             rawDelta = delta.amount0();</span></a>
+<a name="274"><span class="lineNum">     274 </span>                :            :         }</a>
+<a name="275"><span class="lineNum">     275 </span>                :            : </a>
+<a name="276"><span class="lineNum">     276 </span>                :            :         // Get absolute output value regardless of sign convention</a>
+<a name="277"><span class="lineNum">     277 </span>                :<span class="lineCov">        524 :         uint256 absOutput;</span></a>
+<a name="278"><span class="lineNum">     278 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchCov" title="Branch 1 was taken 524 times"> + </span>]:<span class="lineCov">        524 :         if (rawDelta &lt; 0) {</span></a>
+<a name="279"><span class="lineNum">     279 </span>                :<span class="lineNoCov">          0 :             absOutput = uint256(uint128(-rawDelta));</span></a>
+<a name="280"><span class="lineNum">     280 </span>           [<span class="branchCov" title="Branch 0 was taken 523 times"> + </span>]:<span class="lineCov">        524 :         } else if (rawDelta &gt; 0) {</span></a>
+<a name="281"><span class="lineNum">     281 </span>                :<span class="lineCov">        523 :             absOutput = uint256(uint128(rawDelta));</span></a>
+<a name="282"><span class="lineNum">     282 </span>                :            :         }</a>
+<a name="283"><span class="lineNum">     283 </span>                :            :         // if rawDelta == 0, absOutput stays 0</a>
+<a name="284"><span class="lineNum">     284 </span>                :            : </a>
+<a name="285"><span class="lineNum">     285 </span>                :            :         // Only take fee if there's actual output</a>
+<a name="286"><span class="lineNum">     286 </span>                :<span class="lineCov">        524 :         int128 feeAmount = int128(0);</span></a>
+<a name="287"><span class="lineNum">     287 </span>           [<span class="branchCov" title="Branch 0 was taken 522 times"> + </span>]:<span class="lineCov">        524 :         if (absOutput &gt; 0 &amp;&amp; feeBps &gt; 0) {</span></a>
+<a name="288"><span class="lineNum">     288 </span>                :<span class="lineCov">        522 :             uint256 fee = (absOutput * feeBps) / BPS_DENOMINATOR;</span></a>
+<a name="289"><span class="lineNum">     289 </span>                :            : </a>
+<a name="290"><span class="lineNum">     290 </span>           [<span class="branchCov" title="Branch 0 was taken 522 times"> + </span>]:<span class="lineCov">        522 :             if (fee &gt; 0) {</span></a>
+<a name="291"><span class="lineNum">     291 </span>                :<span class="lineCov">        522 :                 feeAmount = int128(int256(fee));</span></a>
+<a name="292"><span class="lineNum">     292 </span>                :            : </a>
+<a name="293"><span class="lineNum">     293 </span>                :<span class="lineCov">        522 :                 Currency outputCurrency = params.zeroForOne ? key.currency1 : key.currency0;</span></a>
+<a name="294"><span class="lineNum">     294 </span>                :<span class="lineCov">        522 :                 poolManager.mint(feeRecipient, CurrencyLibrary.toId(outputCurrency), fee);</span></a>
+<a name="295"><span class="lineNum">     295 </span>                :            :             }</a>
+<a name="296"><span class="lineNum">     296 </span>                :            :         }</a>
+<a name="297"><span class="lineNum">     297 </span>                :            : </a>
+<a name="298"><span class="lineNum">     298 </span>                :            :         // ─── Step 4: Update analytics ───────────────────────────────</a>
+<a name="299"><span class="lineNum">     299 </span>                :            : </a>
+<a name="300"><span class="lineNum">     300 </span>                :<span class="lineCov">        524 :         PoolId poolId = key.toId();</span></a>
+<a name="301"><span class="lineNum">     301 </span>                :<span class="lineCov">        524 :         totalSettlements[poolId] += batchSize;</span></a>
+<a name="302"><span class="lineNum">     302 </span>           [<span class="branchCov" title="Branch 0 was taken 522 times"> + </span>]:<span class="lineCov">        524 :         if (feeAmount &gt; 0) {</span></a>
+<a name="303"><span class="lineNum">     303 </span>                :<span class="lineCov">        522 :             totalFeesCollected[poolId] += uint256(uint128(feeAmount));</span></a>
+<a name="304"><span class="lineNum">     304 </span>                :            :         }</a>
+<a name="305"><span class="lineNum">     305 </span>           [<span class="branchCov" title="Branch 0 was taken 523 times"> + </span>]:<span class="lineCov">        524 :         if (absOutput &gt; 0) {</span></a>
+<a name="306"><span class="lineNum">     306 </span>                :<span class="lineCov">        523 :             totalVolumeSwapped[poolId] += absOutput;</span></a>
+<a name="307"><span class="lineNum">     307 </span>                :            :         }</a>
+<a name="308"><span class="lineNum">     308 </span>                :            : </a>
+<a name="309"><span class="lineNum">     309 </span>                :            :         // ─── Step 5: Emit events ────────────────────────────────────</a>
+<a name="310"><span class="lineNum">     310 </span>                :            : </a>
+<a name="311"><span class="lineNum">     311 </span>                :<span class="lineCov">        524 :         emit SettlementSwapExecuted(poolId, sender, batchSize, feeBps, rawDelta);</span></a>
+<a name="312"><span class="lineNum">     312 </span>                :            : </a>
+<a name="313"><span class="lineNum">     313 </span>           [<span class="branchCov" title="Branch 0 was taken 522 times"> + </span>]:<span class="lineCov">        524 :         if (feeAmount &gt; 0) {</span></a>
+<a name="314"><span class="lineNum">     314 </span>                :<span class="lineCov">        522 :             emit SettlementFeeCollected(poolId, feeRecipient, uint256(uint128(feeAmount)), batchSize, feeBps);</span></a>
+<a name="315"><span class="lineNum">     315 </span>                :            :         }</a>
+<a name="316"><span class="lineNum">     316 </span>                :            : </a>
+<a name="317"><span class="lineNum">     317 </span>                :<span class="lineCov">        524 :         return (BaseHook.afterSwap.selector, feeAmount);</span></a>
+<a name="318"><span class="lineNum">     318 </span>                :            :     }</a>
+<a name="319"><span class="lineNum">     319 </span>                :            : </a>
+<a name="320"><span class="lineNum">     320 </span>                :            :     // ─── Dynamic Fee Calculation ────────────────────────────────────────</a>
+<a name="321"><span class="lineNum">     321 </span>                :            : </a>
+<a name="322"><span class="lineNum">     322 </span>                :            :     /**</a>
+<a name="323"><span class="lineNum">     323 </span>                :            :      * @notice Calculates the fee in basis points based on batch size.</a>
+<a name="324"><span class="lineNum">     324 </span>                :            :      *</a>
+<a name="325"><span class="lineNum">     325 </span>                :            :      * @dev  Formula: fee = max(minFee, baseFee - ((batchSize - 1) * decayRate))</a>
+<a name="326"><span class="lineNum">     326 </span>                :            :      *</a>
+<a name="327"><span class="lineNum">     327 </span>                :            :      *       We subtract 1 from batchSize because a single settlement pays</a>
+<a name="328"><span class="lineNum">     328 </span>                :            :      *       the full baseFee. The discount starts from the 2nd settlement onward.</a>
+<a name="329"><span class="lineNum">     329 </span>                :            :      *</a>
+<a name="330"><span class="lineNum">     330 </span>                :            :      *       Examples with baseFee=50, minFee=10, decayRate=5:</a>
+<a name="331"><span class="lineNum">     331 </span>                :            :      *         batchSize=1  → max(10, 50 - 0)  = 50bp (0.50%)</a>
+<a name="332"><span class="lineNum">     332 </span>                :            :      *         batchSize=2  → max(10, 50 - 5)  = 45bp (0.45%)</a>
+<a name="333"><span class="lineNum">     333 </span>                :            :      *         batchSize=5  → max(10, 50 - 20) = 30bp (0.30%)</a>
+<a name="334"><span class="lineNum">     334 </span>                :            :      *         batchSize=9  → max(10, 50 - 40) = 10bp (0.10%)</a>
+<a name="335"><span class="lineNum">     335 </span>                :            :      *         batchSize=20 → max(10, 50 - 95) = 10bp (0.10%) — clamped to min</a>
+<a name="336"><span class="lineNum">     336 </span>                :            :      *</a>
+<a name="337"><span class="lineNum">     337 </span>                :            :      * @param batchSize  Number of settlements in the current batch.</a>
+<a name="338"><span class="lineNum">     338 </span>                :            :      * @return feeBps    The fee in basis points to apply.</a>
+<a name="339"><span class="lineNum">     339 </span>                :            :      */</a>
+<a name="340"><span class="lineNum">     340 </span>                :<span class="lineNoCov">          0 :     function calculateDynamicFee(uint256 batchSize) public view returns (uint256 feeBps) {</span></a>
+<a name="341"><span class="lineNum">     341 </span>                :            :         // Edge case: if baseFee is 0, no fee regardless of batch size</a>
+<a name="342"><span class="lineNum">     342 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">       6419 :         if (baseFee == 0) return 0;</span></a>
+<a name="343"><span class="lineNum">     343 </span>                :            : </a>
+<a name="344"><span class="lineNum">     344 </span>                :            :         // Decay amount = (batchSize - 1) * decayRate</a>
+<a name="345"><span class="lineNum">     345 </span>                :            :         // The -1 means a single settlement pays full baseFee</a>
+<a name="346"><span class="lineNum">     346 </span>                :<span class="lineCov">       6418 :         uint256 decay = (batchSize - 1) * decayRate;</span></a>
+<a name="347"><span class="lineNum">     347 </span>                :            : </a>
+<a name="348"><span class="lineNum">     348 </span>                :            :         // Avoid underflow: if decay exceeds baseFee, clamp to minFee</a>
+<a name="349"><span class="lineNum">     349 </span>           [<span class="branchCov" title="Branch 0 was taken 4673 times"> + </span>]:<span class="lineCov">       6417 :         if (decay &gt;= baseFee) {</span></a>
+<a name="350"><span class="lineNum">     350 </span>                :<span class="lineCov">       4673 :             return minFee;</span></a>
+<a name="351"><span class="lineNum">     351 </span>                :            :         }</a>
+<a name="352"><span class="lineNum">     352 </span>                :            : </a>
+<a name="353"><span class="lineNum">     353 </span>                :<span class="lineCov">       1744 :         uint256 calculatedFee = baseFee - decay;</span></a>
+<a name="354"><span class="lineNum">     354 </span>                :            : </a>
+<a name="355"><span class="lineNum">     355 </span>                :            :         // Clamp to minimum</a>
+<a name="356"><span class="lineNum">     356 </span>                :<span class="lineCov">       1744 :         return calculatedFee &lt; minFee ? minFee : calculatedFee;</span></a>
+<a name="357"><span class="lineNum">     357 </span>                :            :     }</a>
+<a name="358"><span class="lineNum">     358 </span>                :            : </a>
+<a name="359"><span class="lineNum">     359 </span>                :            :     // ─── Admin Functions ────────────────────────────────────────────────</a>
+<a name="360"><span class="lineNum">     360 </span>                :            : </a>
+<a name="361"><span class="lineNum">     361 </span>                :            :     /**</a>
+<a name="362"><span class="lineNum">     362 </span>                :            :      * @notice Owner updates the dynamic fee parameters.</a>
+<a name="363"><span class="lineNum">     363 </span>                :            :      *</a>
+<a name="364"><span class="lineNum">     364 </span>                :            :      * @param _baseFee      New base fee in bps (max 500 = 5%).</a>
+<a name="365"><span class="lineNum">     365 </span>                :            :      * @param _minFee       New minimum fee in bps.</a>
+<a name="366"><span class="lineNum">     366 </span>                :            :      * @param _decayRate    New decay rate per settlement in bps.</a>
+<a name="367"><span class="lineNum">     367 </span>                :            :      * @param _feeRecipient New fee recipient address.</a>
+<a name="368"><span class="lineNum">     368 </span>                :            :      */</a>
+<a name="369"><span class="lineNum">     369 </span>                :<span class="lineCov">        263 :     function setFeeConfig(uint256 _baseFee, uint256 _minFee, uint256 _decayRate, address _feeRecipient)</span></a>
+<a name="370"><span class="lineNum">     370 </span>                :            :         external</a>
+<a name="371"><span class="lineNum">     371 </span>                :            :         onlyOwner</a>
+<a name="372"><span class="lineNum">     372 </span>                :            :     {</a>
+<a name="373"><span class="lineNum">     373 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        262 :         if (_baseFee &gt; MAX_BASE_FEE) revert Hook__BaseFeeExceedsCap(_baseFee, MAX_BASE_FEE);</span></a>
+<a name="374"><span class="lineNum">     374 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        261 :         if (_minFee &gt; _baseFee) revert Hook__MinFeeExceedsBaseFee(_minFee, _baseFee);</span></a>
+<a name="375"><span class="lineNum">     375 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        260 :         if (_baseFee &gt; 0 &amp;&amp; _feeRecipient == address(0)) revert Hook__FeeRecipientNotSet();</span></a>
+<a name="376"><span class="lineNum">     376 </span>                :            : </a>
+<a name="377"><span class="lineNum">     377 </span>                :<span class="lineCov">        259 :         baseFee = _baseFee;</span></a>
+<a name="378"><span class="lineNum">     378 </span>                :<span class="lineCov">        259 :         minFee = _minFee;</span></a>
+<a name="379"><span class="lineNum">     379 </span>                :<span class="lineCov">        259 :         decayRate = _decayRate;</span></a>
+<a name="380"><span class="lineNum">     380 </span>                :<span class="lineCov">        259 :         feeRecipient = _feeRecipient;</span></a>
+<a name="381"><span class="lineNum">     381 </span>                :            : </a>
+<a name="382"><span class="lineNum">     382 </span>                :<span class="lineCov">        259 :         emit FeeConfigUpdated(_baseFee, _minFee, _decayRate, _feeRecipient);</span></a>
+<a name="383"><span class="lineNum">     383 </span>                :            :     }</a>
+<a name="384"><span class="lineNum">     384 </span>                :            : </a>
+<a name="385"><span class="lineNum">     385 </span>                :            :     /**</a>
+<a name="386"><span class="lineNum">     386 </span>                :            :      * @notice Owner authorizes or revokes a settler address.</a>
+<a name="387"><span class="lineNum">     387 </span>                :            :      *</a>
+<a name="388"><span class="lineNum">     388 </span>                :            :      * @dev In production, this would be the BatchSettler contract.</a>
+<a name="389"><span class="lineNum">     389 </span>                :            :      *      The mapping allows upgrading to a new BatchSettler without</a>
+<a name="390"><span class="lineNum">     390 </span>                :            :      *      redeploying the hook.</a>
+<a name="391"><span class="lineNum">     391 </span>                :            :      *</a>
+<a name="392"><span class="lineNum">     392 </span>                :            :      * @param settler    Address to authorize or revoke.</a>
+<a name="393"><span class="lineNum">     393 </span>                :            :      * @param authorized Whether the address is authorized.</a>
+<a name="394"><span class="lineNum">     394 </span>                :            :      */</a>
+<a name="395"><span class="lineNum">     395 </span>                :<span class="lineCov">         77 :     function setAuthorizedSettler(address settler, bool authorized) external onlyOwner {</span></a>
+<a name="396"><span class="lineNum">     396 </span>                :<span class="lineCov">         76 :         authorizedSettlers[settler] = authorized;</span></a>
+<a name="397"><span class="lineNum">     397 </span>                :<span class="lineCov">         76 :         emit SettlerAuthorizationUpdated(settler, authorized);</span></a>
+<a name="398"><span class="lineNum">     398 </span>                :            :     }</a>
+<a name="399"><span class="lineNum">     399 </span>                :            : </a>
+<a name="400"><span class="lineNum">     400 </span>                :            :     // ─── View Functions ─────────────────────────────────────────────────</a>
+<a name="401"><span class="lineNum">     401 </span>                :            : </a>
+<a name="402"><span class="lineNum">     402 </span>                :            :     /**</a>
+<a name="403"><span class="lineNum">     403 </span>                :            :      * @notice Returns the fee that would be charged for a given batch size.</a>
+<a name="404"><span class="lineNum">     404 </span>                :            :      *         Useful for the frontend to show merchants their expected fee.</a>
+<a name="405"><span class="lineNum">     405 </span>                :            :      *</a>
+<a name="406"><span class="lineNum">     406 </span>                :            :      * @param batchSize  Number of settlements in the batch.</a>
+<a name="407"><span class="lineNum">     407 </span>                :            :      * @return feeBps    Fee in basis points.</a>
+<a name="408"><span class="lineNum">     408 </span>                :            :      * @return feePercent100 Fee as a human-readable string denominator (x100 for %).</a>
+<a name="409"><span class="lineNum">     409 </span>                :            :      */</a>
+<a name="410"><span class="lineNum">     410 </span>                :<span class="lineCov">       5895 :     function getExpectedFee(uint256 batchSize) external view returns (uint256 feeBps, uint256 feePercent100) {</span></a>
+<a name="411"><span class="lineNum">     411 </span>                :<span class="lineCov">       5895 :         feeBps = calculateDynamicFee(batchSize);</span></a>
+<a name="412"><span class="lineNum">     412 </span>                :<span class="lineCov">       5894 :         feePercent100 = feeBps; // feeBps / 100 = percent, caller divides</span></a>
+<a name="413"><span class="lineNum">     413 </span>                :            :     }</a>
+<a name="414"><span class="lineNum">     414 </span>                :            : </a>
+<a name="415"><span class="lineNum">     415 </span>                :            :     /**</a>
+<a name="416"><span class="lineNum">     416 </span>                :            :      * @notice Returns analytics for a specific pool.</a>
+<a name="417"><span class="lineNum">     417 </span>                :            :      *</a>
+<a name="418"><span class="lineNum">     418 </span>                :            :      * @param poolId  The pool to query.</a>
+<a name="419"><span class="lineNum">     419 </span>                :            :      * @return settlements  Total number of individual settlements.</a>
+<a name="420"><span class="lineNum">     420 </span>                :            :      * @return fees         Total fees collected (in output token units).</a>
+<a name="421"><span class="lineNum">     421 </span>                :            :      * @return volume       Total swap volume.</a>
+<a name="422"><span class="lineNum">     422 </span>                :            :      */</a>
+<a name="423"><span class="lineNum">     423 </span>                :<span class="lineCov">       1037 :     function getPoolMetrics(PoolId poolId) external view returns (uint256 settlements, uint256 fees, uint256 volume) {</span></a>
+<a name="424"><span class="lineNum">     424 </span>                :<span class="lineCov">       1037 :         return (totalSettlements[poolId], totalFeesCollected[poolId], totalVolumeSwapped[poolId]);</span></a>
+<a name="425"><span class="lineNum">     425 </span>                :            :     }</a>
+<a name="426"><span class="lineNum">     426 </span>                :            : }</a>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.14</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

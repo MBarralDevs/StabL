@@ -1,0 +1,307 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/PaymentPool.sol</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">src</a> - PaymentPool.sol<span style="font-size: 80%;"> (source / <a href="PaymentPool.sol.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">41</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2026-02-26 17:12:39</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">10</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td class="headerItem">Branches:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">           Branch data     Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>                :            : // SPDX-License-Identifier: MIT</a>
+<a name="2"><span class="lineNum">       2 </span>                :            : pragma solidity ^0.8.30;</a>
+<a name="3"><span class="lineNum">       3 </span>                :            : </a>
+<a name="4"><span class="lineNum">       4 </span>                :            : import {IERC20} from &quot;@openzeppelin/contracts/token/ERC20/IERC20.sol&quot;;</a>
+<a name="5"><span class="lineNum">       5 </span>                :            : import {SafeERC20} from &quot;@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol&quot;;</a>
+<a name="6"><span class="lineNum">       6 </span>                :            : import {Ownable} from &quot;@openzeppelin/contracts/access/Ownable.sol&quot;;</a>
+<a name="7"><span class="lineNum">       7 </span>                :            : import {ReentrancyGuard} from &quot;@openzeppelin/contracts/utils/ReentrancyGuard.sol&quot;;</a>
+<a name="8"><span class="lineNum">       8 </span>                :            : import {Pausable} from &quot;@openzeppelin/contracts/utils/Pausable.sol&quot;;</a>
+<a name="9"><span class="lineNum">       9 </span>                :            : </a>
+<a name="10"><span class="lineNum">      10 </span>                :            : /**</a>
+<a name="11"><span class="lineNum">      11 </span>                :            :  * @title PaymentPool</a>
+<a name="12"><span class="lineNum">      12 </span>                :            :  * @notice Central vault on Arc that receives cross-chain payments routed by Li.Fi</a>
+<a name="13"><span class="lineNum">      13 </span>                :            :  *         and tracks per-merchant balances.</a>
+<a name="14"><span class="lineNum">      14 </span>                :            :  *</a>
+<a name="15"><span class="lineNum">      15 </span>                :            :  * @dev  How it fits in the architecture:</a>
+<a name="16"><span class="lineNum">      16 </span>                :            :  *       1. A customer wants to pay a merchant with any stablecoin on any chain.</a>
+<a name="17"><span class="lineNum">      17 </span>                :            :  *       2. The backend gets a Li.Fi route that ends with a transfer INTO this contract.</a>
+<a name="18"><span class="lineNum">      18 </span>                :            :  *       3. Li.Fi lands tokens here → PaymentReceived event fires.</a>
+<a name="19"><span class="lineNum">      19 </span>                :            :  *       4. The backend picks up that event, credits the merchant instantly via Yellow</a>
+<a name="20"><span class="lineNum">      20 </span>                :            :  *          state channels (off-chain), and later the BatchSettler pulls funds out of</a>
+<a name="21"><span class="lineNum">      21 </span>                :            :  *          this pool to do the actual on-chain settlement.</a>
+<a name="22"><span class="lineNum">      22 </span>                :            :  *</a>
+<a name="23"><span class="lineNum">      23 </span>                :            :  *       So this contract is the single source of truth for &quot;how much does each</a>
+<a name="24"><span class="lineNum">      24 </span>                :            :  *       merchant have sitting on-chain, waiting to be settled&quot;.</a>
+<a name="25"><span class="lineNum">      25 </span>                :            :  *</a>
+<a name="26"><span class="lineNum">      26 </span>                :            :  * @dev  Design decisions:</a>
+<a name="27"><span class="lineNum">      27 </span>                :            :  *       - We use OpenZeppelin's SafeERC20 for all token transfers to handle</a>
+<a name="28"><span class="lineNum">      28 </span>                :            :  *         non-standard tokens (some stablecoins don't return bool on transfer).</a>
+<a name="29"><span class="lineNum">      29 </span>                :            :  *       - The owner can register authorized routers. For the MVP this is just</a>
+<a name="30"><span class="lineNum">      30 </span>                :            :  *         us (the backend), but the pattern lets us add Li.Fi's own contract</a>
+<a name="31"><span class="lineNum">      31 </span>                :            :  *         as an authorized sender if needed.</a>
+<a name="32"><span class="lineNum">      32 </span>                :            :  *       - We support multiple token types (USDC, EURC) because the gateway's</a>
+<a name="33"><span class="lineNum">      33 </span>                :            :  *         whole value prop is &quot;accept anything&quot;. Each merchant balance is tracked</a>
+<a name="34"><span class="lineNum">      34 </span>                :            :  *         per-token.</a>
+<a name="35"><span class="lineNum">      35 </span>                :            :  */</a>
+<a name="36"><span class="lineNum">      36 </span>                :            : contract PaymentPool is Ownable, ReentrancyGuard, Pausable {</a>
+<a name="37"><span class="lineNum">      37 </span>                :            :     using SafeERC20 for IERC20;</a>
+<a name="38"><span class="lineNum">      38 </span>                :            : </a>
+<a name="39"><span class="lineNum">      39 </span>                :            :     // ─── Custom Errors ───────────────────────────────────────────────────────</a>
+<a name="40"><span class="lineNum">      40 </span>                :            :     error PaymentPool__NotAuthorized();</a>
+<a name="41"><span class="lineNum">      41 </span>                :            :     error PaymentPool__ZeroAddress();</a>
+<a name="42"><span class="lineNum">      42 </span>                :            :     error PaymentPool__ZeroAmount();</a>
+<a name="43"><span class="lineNum">      43 </span>                :            :     error PaymentPool__InsufficientBalance(address merchant, address token, uint256 requested, uint256 available);</a>
+<a name="44"><span class="lineNum">      44 </span>                :            :     error PaymentPool__TokenNotSupported(address token);</a>
+<a name="45"><span class="lineNum">      45 </span>                :            :     error PaymentPool__DuplicatePayment(bytes32 paymentId);</a>
+<a name="46"><span class="lineNum">      46 </span>                :            : </a>
+<a name="47"><span class="lineNum">      47 </span>                :            :     // ─── Events ──────────────────────────────────────────────────────────────</a>
+<a name="48"><span class="lineNum">      48 </span>                :            : </a>
+<a name="49"><span class="lineNum">      49 </span>                :            :     /// @notice Emitted when a payment lands in the pool.</a>
+<a name="50"><span class="lineNum">      50 </span>                :            :     /// @param merchant   The merchant being paid.</a>
+<a name="51"><span class="lineNum">      51 </span>                :            :     /// @param payer      The original customer address (on the source chain this</a>
+<a name="52"><span class="lineNum">      52 </span>                :            :     ///                   won't match, but on Arc it's the Li.Fi relay address —</a>
+<a name="53"><span class="lineNum">      53 </span>                :            :     ///                   we track it for audit trail).</a>
+<a name="54"><span class="lineNum">      54 </span>                :            :     /// @param token      The ERC20 token that was deposited.</a>
+<a name="55"><span class="lineNum">      55 </span>                :            :     /// @param amount     How much was deposited (in token's smallest unit).</a>
+<a name="56"><span class="lineNum">      56 </span>                :            :     /// @param paymentId  A unique ID the backend assigned to this payment before</a>
+<a name="57"><span class="lineNum">      57 </span>                :            :     ///                   routing it — lets us correlate on-chain events with our DB.</a>
+<a name="58"><span class="lineNum">      58 </span>                :            :     event PaymentReceived(</a>
+<a name="59"><span class="lineNum">      59 </span>                :            :         address indexed merchant, address indexed payer, address indexed token, uint256 amount, bytes32 paymentId</a>
+<a name="60"><span class="lineNum">      60 </span>                :            :     );</a>
+<a name="61"><span class="lineNum">      61 </span>                :            : </a>
+<a name="62"><span class="lineNum">      62 </span>                :            :     /// @notice Emitted when funds are withdrawn from the pool (by BatchSettler).</a>
+<a name="63"><span class="lineNum">      63 </span>                :            :     event FundsWithdrawn(</a>
+<a name="64"><span class="lineNum">      64 </span>                :            :         address indexed merchant, address indexed token, uint256 amount, address recipient, address indexed withdrawer</a>
+<a name="65"><span class="lineNum">      65 </span>                :            :     );</a>
+<a name="66"><span class="lineNum">      66 </span>                :            : </a>
+<a name="67"><span class="lineNum">      67 </span>                :            :     /// @notice Emitted when a token's whitelist status changes.</a>
+<a name="68"><span class="lineNum">      68 </span>                :            :     event TokenSupportUpdated(address indexed token, bool supported);</a>
+<a name="69"><span class="lineNum">      69 </span>                :            : </a>
+<a name="70"><span class="lineNum">      70 </span>                :            :     /// @notice Emitted when owner performs an emergency withdrawal.</a>
+<a name="71"><span class="lineNum">      71 </span>                :            :     event EmergencyWithdraw(address indexed token, uint256 amount);</a>
+<a name="72"><span class="lineNum">      72 </span>                :            : </a>
+<a name="73"><span class="lineNum">      73 </span>                :            :     // ─── State ───────────────────────────────────────────────────────────────</a>
+<a name="74"><span class="lineNum">      74 </span>                :            : </a>
+<a name="75"><span class="lineNum">      75 </span>                :            :     /// @notice Per-merchant, per-token balances.</a>
+<a name="76"><span class="lineNum">      76 </span>                :            :     /// balances[merchant][token] = total amount in pool</a>
+<a name="77"><span class="lineNum">      77 </span>                :            :     mapping(address =&gt; mapping(address =&gt; uint256)) private balances;</a>
+<a name="78"><span class="lineNum">      78 </span>                :            : </a>
+<a name="79"><span class="lineNum">      79 </span>                :            :     /// @notice Addresses authorized to call withdraw (i.e. the BatchSettler contract).</a>
+<a name="80"><span class="lineNum">      80 </span>                :            :     /// We use a mapping for O(1) lookup.</a>
+<a name="81"><span class="lineNum">      81 </span>                :            :     mapping(address =&gt; bool) private authorizedWithdrawers;</a>
+<a name="82"><span class="lineNum">      82 </span>                :            : </a>
+<a name="83"><span class="lineNum">      83 </span>                :            :     /// @notice Tokens that are allowed to be deposited into the pool.</a>
+<a name="84"><span class="lineNum">      84 </span>                :            :     /// Only owner-whitelisted tokens can be used in receivePayment().</a>
+<a name="85"><span class="lineNum">      85 </span>                :            :     mapping(address =&gt; bool) private supportedTokens;</a>
+<a name="86"><span class="lineNum">      86 </span>                :            : </a>
+<a name="87"><span class="lineNum">      87 </span>                :            :     /// @notice Tracks which payment IDs have already been processed.</a>
+<a name="88"><span class="lineNum">      88 </span>                :            :     /// Prevents the same payment from being deposited twice.</a>
+<a name="89"><span class="lineNum">      89 </span>                :            :     mapping(bytes32 =&gt; bool) private processedPayments;</a>
+<a name="90"><span class="lineNum">      90 </span>                :            : </a>
+<a name="91"><span class="lineNum">      91 </span>                :            :     // ─── Constructor ─────────────────────────────────────────────────────────</a>
+<a name="92"><span class="lineNum">      92 </span>                :            : </a>
+<a name="93"><span class="lineNum">      93 </span>                :            :     constructor() Ownable(msg.sender) {}</a>
+<a name="94"><span class="lineNum">      94 </span>                :            : </a>
+<a name="95"><span class="lineNum">      95 </span>                :            :     // ─── Admin: Register Authorized Withdrawers ──────────────────────────────</a>
+<a name="96"><span class="lineNum">      96 </span>                :            : </a>
+<a name="97"><span class="lineNum">      97 </span>                :            :     /**</a>
+<a name="98"><span class="lineNum">      98 </span>                :            :      * @notice Owner registers an address that is allowed to withdraw funds.</a>
+<a name="99"><span class="lineNum">      99 </span>                :            :      *         In production this would be the BatchSettler contract address,</a>
+<a name="100"><span class="lineNum">     100 </span>                :            :      *         set after deployment.</a>
+<a name="101"><span class="lineNum">     101 </span>                :            :      */</a>
+<a name="102"><span class="lineNum">     102 </span>                :<span class="lineNoCov">          0 :     function setAuthorizedWithdrawer(address withdrawer, bool authorized) external onlyOwner {</span></a>
+<a name="103"><span class="lineNum">     103 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (withdrawer == address(0)) revert PaymentPool__ZeroAddress();</span></a>
+<a name="104"><span class="lineNum">     104 </span>                :<span class="lineNoCov">          0 :         authorizedWithdrawers[withdrawer] = authorized;</span></a>
+<a name="105"><span class="lineNum">     105 </span>                :            :     }</a>
+<a name="106"><span class="lineNum">     106 </span>                :            : </a>
+<a name="107"><span class="lineNum">     107 </span>                :            :     /// @notice Owner adds or removes a token from the whitelist.</a>
+<a name="108"><span class="lineNum">     108 </span>                :            :     /// @param token   The ERC20 token address.</a>
+<a name="109"><span class="lineNum">     109 </span>                :            :     /// @param supported  True to allow, false to block.</a>
+<a name="110"><span class="lineNum">     110 </span>                :<span class="lineNoCov">          0 :     function setTokenSupport(address token, bool supported) external onlyOwner {</span></a>
+<a name="111"><span class="lineNum">     111 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (token == address(0)) revert PaymentPool__ZeroAddress();</span></a>
+<a name="112"><span class="lineNum">     112 </span>                :<span class="lineNoCov">          0 :         supportedTokens[token] = supported;</span></a>
+<a name="113"><span class="lineNum">     113 </span>                :<span class="lineNoCov">          0 :         emit TokenSupportUpdated(token, supported);</span></a>
+<a name="114"><span class="lineNum">     114 </span>                :            :     }</a>
+<a name="115"><span class="lineNum">     115 </span>                :            : </a>
+<a name="116"><span class="lineNum">     116 </span>                :            :     // ─── Core: Receive Payment ───────────────────────────────────────────────</a>
+<a name="117"><span class="lineNum">     117 </span>                :            : </a>
+<a name="118"><span class="lineNum">     118 </span>                :            :     /**</a>
+<a name="119"><span class="lineNum">     119 </span>                :            :      * @notice Anyone can call this to deposit tokens on behalf of a merchant.</a>
+<a name="120"><span class="lineNum">     120 </span>                :            :      *         In practice, Li.Fi's destination call or the backend wallet calls this.</a>
+<a name="121"><span class="lineNum">     121 </span>                :            :      *</a>
+<a name="122"><span class="lineNum">     122 </span>                :            :      * @param merchant   The merchant address receiving the payment.</a>
+<a name="123"><span class="lineNum">     123 </span>                :            :      * @param token      The ERC20 token being deposited.</a>
+<a name="124"><span class="lineNum">     124 </span>                :            :      * @param amount     How much to deposit. Caller must have approved this contract.</a>
+<a name="125"><span class="lineNum">     125 </span>                :            :      * @param paymentId  Opaque ID from the backend — stored in the event for correlation.</a>
+<a name="126"><span class="lineNum">     126 </span>                :            :      */</a>
+<a name="127"><span class="lineNum">     127 </span>                :<span class="lineNoCov">          0 :     function receivePayment(address merchant, address token, uint256 amount, bytes32 paymentId)</span></a>
+<a name="128"><span class="lineNum">     128 </span>                :            :         external</a>
+<a name="129"><span class="lineNum">     129 </span>                :            :         whenNotPaused</a>
+<a name="130"><span class="lineNum">     130 </span>                :            :         nonReentrant</a>
+<a name="131"><span class="lineNum">     131 </span>                :            :     {</a>
+<a name="132"><span class="lineNum">     132 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (merchant == address(0)) revert PaymentPool__ZeroAddress();</span></a>
+<a name="133"><span class="lineNum">     133 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (token == address(0)) revert PaymentPool__ZeroAddress();</span></a>
+<a name="134"><span class="lineNum">     134 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (amount == 0) revert PaymentPool__ZeroAmount();</span></a>
+<a name="135"><span class="lineNum">     135 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (!supportedTokens[token]) revert PaymentPool__TokenNotSupported(token);</span></a>
+<a name="136"><span class="lineNum">     136 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (processedPayments[paymentId]) revert PaymentPool__DuplicatePayment(paymentId);</span></a>
+<a name="137"><span class="lineNum">     137 </span>                :            : </a>
+<a name="138"><span class="lineNum">     138 </span>                :<span class="lineNoCov">          0 :         processedPayments[paymentId] = true;</span></a>
+<a name="139"><span class="lineNum">     139 </span>                :            : </a>
+<a name="140"><span class="lineNum">     140 </span>                :            :         // Pull tokens from the caller into this contract.</a>
+<a name="141"><span class="lineNum">     141 </span>                :            :         // SafeERC20 handles tokens that don't return bool (like some USDC versions).</a>
+<a name="142"><span class="lineNum">     142 </span>                :<span class="lineNoCov">          0 :         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);</span></a>
+<a name="143"><span class="lineNum">     143 </span>                :            : </a>
+<a name="144"><span class="lineNum">     144 </span>                :            :         // Update the merchant's balance.</a>
+<a name="145"><span class="lineNum">     145 </span>                :<span class="lineNoCov">          0 :         balances[merchant][token] += amount;</span></a>
+<a name="146"><span class="lineNum">     146 </span>                :            : </a>
+<a name="147"><span class="lineNum">     147 </span>                :<span class="lineNoCov">          0 :         emit PaymentReceived(merchant, msg.sender, token, amount, paymentId);</span></a>
+<a name="148"><span class="lineNum">     148 </span>                :            :     }</a>
+<a name="149"><span class="lineNum">     149 </span>                :            : </a>
+<a name="150"><span class="lineNum">     150 </span>                :            :     // ─── Core: Withdraw Funds (called by BatchSettler) ──────────────────────</a>
+<a name="151"><span class="lineNum">     151 </span>                :            : </a>
+<a name="152"><span class="lineNum">     152 </span>                :            :     /**</a>
+<a name="153"><span class="lineNum">     153 </span>                :            :      * @notice Withdraws funds from a merchant's balance. Only callable by</a>
+<a name="154"><span class="lineNum">     154 </span>                :            :      *         an authorized withdrawer (the BatchSettler contract).</a>
+<a name="155"><span class="lineNum">     155 </span>                :            :      *</a>
+<a name="156"><span class="lineNum">     156 </span>                :            :      * @param merchant   Which merchant's balance to deduct from.</a>
+<a name="157"><span class="lineNum">     157 </span>                :            :      * @param token      Which token to withdraw.</a>
+<a name="158"><span class="lineNum">     158 </span>                :            :      * @param amount     How much to withdraw.</a>
+<a name="159"><span class="lineNum">     159 </span>                :            :      * @param recipient  Where to send the tokens (could be the merchant directly,</a>
+<a name="160"><span class="lineNum">     160 </span>                :            :      *                   or another contract for further routing).</a>
+<a name="161"><span class="lineNum">     161 </span>                :            :      */</a>
+<a name="162"><span class="lineNum">     162 </span>                :<span class="lineNoCov">          0 :     function withdraw(address merchant, address token, uint256 amount, address recipient)</span></a>
+<a name="163"><span class="lineNum">     163 </span>                :            :         external</a>
+<a name="164"><span class="lineNum">     164 </span>                :            :         whenNotPaused</a>
+<a name="165"><span class="lineNum">     165 </span>                :            :         nonReentrant</a>
+<a name="166"><span class="lineNum">     166 </span>                :            :     {</a>
+<a name="167"><span class="lineNum">     167 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (!authorizedWithdrawers[msg.sender]) revert PaymentPool__NotAuthorized();</span></a>
+<a name="168"><span class="lineNum">     168 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (recipient == address(0)) revert PaymentPool__ZeroAddress();</span></a>
+<a name="169"><span class="lineNum">     169 </span>                :<span class="lineNoCov">          0 :         uint256 balance = balances[merchant][token];</span></a>
+<a name="170"><span class="lineNum">     170 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (balance &lt; amount) revert PaymentPool__InsufficientBalance(merchant, token, amount, balance);</span></a>
+<a name="171"><span class="lineNum">     171 </span>                :            : </a>
+<a name="172"><span class="lineNum">     172 </span>                :<span class="lineNoCov">          0 :         balances[merchant][token] -= amount;</span></a>
+<a name="173"><span class="lineNum">     173 </span>                :            : </a>
+<a name="174"><span class="lineNum">     174 </span>                :<span class="lineNoCov">          0 :         IERC20(token).safeTransfer(recipient, amount);</span></a>
+<a name="175"><span class="lineNum">     175 </span>                :            : </a>
+<a name="176"><span class="lineNum">     176 </span>                :<span class="lineNoCov">          0 :         emit FundsWithdrawn(merchant, token, amount, recipient, msg.sender);</span></a>
+<a name="177"><span class="lineNum">     177 </span>                :            :     }</a>
+<a name="178"><span class="lineNum">     178 </span>                :            : </a>
+<a name="179"><span class="lineNum">     179 </span>                :            :     /// @notice Emergency: withdraw all of a specific token to the owner.</a>
+<a name="180"><span class="lineNum">     180 </span>                :            :     ///         Used for migration to a new PaymentPool contract.</a>
+<a name="181"><span class="lineNum">     181 </span>                :            :     ///         Only callable when paused — forces deliberate action.</a>
+<a name="182"><span class="lineNum">     182 </span>                :            :     /// @param token  The ERC20 token to sweep.</a>
+<a name="183"><span class="lineNum">     183 </span>                :<span class="lineNoCov">          0 :     function emergencyWithdraw(address token) external onlyOwner whenPaused {</span></a>
+<a name="184"><span class="lineNum">     184 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (token == address(0)) revert PaymentPool__ZeroAddress();</span></a>
+<a name="185"><span class="lineNum">     185 </span>                :<span class="lineNoCov">          0 :         uint256 contractBalance = IERC20(token).balanceOf(address(this));</span></a>
+<a name="186"><span class="lineNum">     186 </span>           [<span class="branchNoExec" title="Branch 0 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (contractBalance == 0) revert PaymentPool__ZeroAmount();</span></a>
+<a name="187"><span class="lineNum">     187 </span>                :<span class="lineNoCov">          0 :         IERC20(token).safeTransfer(owner(), contractBalance);</span></a>
+<a name="188"><span class="lineNum">     188 </span>                :<span class="lineNoCov">          0 :         emit EmergencyWithdraw(token, contractBalance);</span></a>
+<a name="189"><span class="lineNum">     189 </span>                :            :     }</a>
+<a name="190"><span class="lineNum">     190 </span>                :            : </a>
+<a name="191"><span class="lineNum">     191 </span>                :            :     // ─── View: Check Balances ────────────────────────────────────────────────</a>
+<a name="192"><span class="lineNum">     192 </span>                :            : </a>
+<a name="193"><span class="lineNum">     193 </span>                :            :     /**</a>
+<a name="194"><span class="lineNum">     194 </span>                :            :      * @notice Returns how much of a specific token a merchant has in the pool.</a>
+<a name="195"><span class="lineNum">     195 </span>                :            :      */</a>
+<a name="196"><span class="lineNum">     196 </span>                :<span class="lineNoCov">          0 :     function getMerchantBalance(address merchant, address token) external view returns (uint256) {</span></a>
+<a name="197"><span class="lineNum">     197 </span>                :<span class="lineNoCov">          0 :         return balances[merchant][token];</span></a>
+<a name="198"><span class="lineNum">     198 </span>                :            :     }</a>
+<a name="199"><span class="lineNum">     199 </span>                :            : </a>
+<a name="200"><span class="lineNum">     200 </span>                :            :     /// @notice Check if a token is whitelisted for deposits.</a>
+<a name="201"><span class="lineNum">     201 </span>                :<span class="lineNoCov">          0 :     function isTokenSupported(address token) external view returns (bool) {</span></a>
+<a name="202"><span class="lineNum">     202 </span>                :<span class="lineNoCov">          0 :         return supportedTokens[token];</span></a>
+<a name="203"><span class="lineNum">     203 </span>                :            :     }</a>
+<a name="204"><span class="lineNum">     204 </span>                :            : </a>
+<a name="205"><span class="lineNum">     205 </span>                :            :     /// @notice Check if a payment ID has already been processed.</a>
+<a name="206"><span class="lineNum">     206 </span>                :<span class="lineNoCov">          0 :     function isPaymentProcessed(bytes32 paymentId) external view returns (bool) {</span></a>
+<a name="207"><span class="lineNum">     207 </span>                :<span class="lineNoCov">          0 :         return processedPayments[paymentId];</span></a>
+<a name="208"><span class="lineNum">     208 </span>                :            :     }</a>
+<a name="209"><span class="lineNum">     209 </span>                :            : </a>
+<a name="210"><span class="lineNum">     210 </span>                :            :     // ─── Admin: Pause / Unpause ─────────────────────────────────────────────</a>
+<a name="211"><span class="lineNum">     211 </span>                :            : </a>
+<a name="212"><span class="lineNum">     212 </span>                :            :     /// @notice Owner can pause the contract in case of emergency.</a>
+<a name="213"><span class="lineNum">     213 </span>                :            :     ///         Pausing blocks all deposits and withdrawals.</a>
+<a name="214"><span class="lineNum">     214 </span>                :<span class="lineNoCov">          0 :     function pause() external onlyOwner {</span></a>
+<a name="215"><span class="lineNum">     215 </span>                :<span class="lineNoCov">          0 :         _pause();</span></a>
+<a name="216"><span class="lineNum">     216 </span>                :            :     }</a>
+<a name="217"><span class="lineNum">     217 </span>                :            : </a>
+<a name="218"><span class="lineNum">     218 </span>                :            :     /// @notice Owner can unpause to resume normal operations.</a>
+<a name="219"><span class="lineNum">     219 </span>                :<span class="lineNoCov">          0 :     function unpause() external onlyOwner {</span></a>
+<a name="220"><span class="lineNum">     220 </span>                :<span class="lineNoCov">          0 :         _unpause();</span></a>
+<a name="221"><span class="lineNum">     221 </span>                :            :     }</a>
+<a name="222"><span class="lineNum">     222 </span>                :            : }</a>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.14</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

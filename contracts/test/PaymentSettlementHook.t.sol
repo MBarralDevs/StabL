@@ -140,6 +140,34 @@ contract PaymentSettlementHookTest is Test {
     }
 
     // ═════════════════════════════════════════════════════════════════════
+    // NEW TESTS: Constructor validation edge cases
+    // ═════════════════════════════════════════════════════════════════════
+
+    /// @notice Constructor with baseFee > MAX_BASE_FEE reverts
+    function test_constructor_baseFeeExceedsCap_reverts() public {
+        uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+
+        bytes memory constructorArgs = abi.encode(manager, 501, 10, 5, feeRecipient);
+        (, bytes32 salt) =
+            HookMiner.find(address(this), flags, 2000, type(PaymentSettlementHook).creationCode, constructorArgs);
+
+        vm.expectRevert(abi.encodeWithSelector(PaymentSettlementHook.Hook__BaseFeeExceedsCap.selector, 501, 500));
+        new PaymentSettlementHook{salt: salt}(IPoolManager(address(manager)), 501, 10, 5, feeRecipient);
+    }
+
+    /// @notice Constructor with minFee > baseFee reverts
+    function test_constructor_minFeeExceedsBase_reverts() public {
+        uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+
+        bytes memory constructorArgs = abi.encode(manager, 50, 60, 5, feeRecipient);
+        (, bytes32 salt) =
+            HookMiner.find(address(this), flags, 3000, type(PaymentSettlementHook).creationCode, constructorArgs);
+
+        vm.expectRevert(abi.encodeWithSelector(PaymentSettlementHook.Hook__MinFeeExceedsBaseFee.selector, 60, 50));
+        new PaymentSettlementHook{salt: salt}(IPoolManager(address(manager)), 50, 60, 5, feeRecipient);
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
     // UNIT TESTS: Fee Calculation (calculateDynamicFee)
     // ═════════════════════════════════════════════════════════════════════
 
@@ -392,6 +420,27 @@ contract PaymentSettlementHookTest is Test {
         assertEq(settlements, 10, "Should accumulate 3+5+2 = 10 settlements");
         assertGt(fees, 0, "Should have accumulated fees across swaps");
         assertGt(volume, 0, "Should have accumulated volume across swaps");
+    }
+
+    /// @notice Swap with minimal amount produces correct behavior
+    function test_swap_minimalAmount_noUnderflow() public {
+        bytes memory hookData = abi.encode(uint256(1), keccak256("batch-tiny"));
+
+        // Very small swap — ensures no underflow in fee math
+        swapRouter.swap(
+            poolKey,
+            SwapParams({
+                zeroForOne: true,
+                amountSpecified: -1, // 1 wei input
+                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+            }),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            hookData
+        );
+
+        // Should not revert — fee on tiny output rounds to 0, which is fine
+        (uint256 settlements,,) = hook.getPoolMetrics(poolId);
+        assertGt(settlements, 0, "Settlement should be recorded even for tiny swaps");
     }
 
     // ═════════════════════════════════════════════════════════════════════
