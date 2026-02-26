@@ -262,37 +262,29 @@ contract PaymentSettlementHook is BaseHook, Ownable {
 
         // ─── Step 3: Determine output amount and take fee ───────────
 
-        // In V4 BalanceDelta (this version):
-        //   - For zeroForOne=true: amount0 is negative (input), amount1 is positive (output)
-        //   - For zeroForOne=false: amount0 is positive (output), amount1 is negative (input)
-        //
-        // The OUTPUT amount is the positive value.
-
-        int128 rawOutput;
+        // The output token amount from the swap.
+        // With afterSwapReturnDelta enabled, V4 may pass the output as
+        // a positive int128 (tokens owed to swapper) rather than negative.
+        // We handle both conventions.
+        int128 rawDelta;
         if (params.zeroForOne) {
-            rawOutput = delta.amount1(); // positive (output to swapper)
+            rawDelta = delta.amount1();
         } else {
-            rawOutput = delta.amount0(); // positive (output to swapper)
+            rawDelta = delta.amount0();
         }
 
-        // Only take fee if there's actual output (rawOutput is positive in this v4 version)
-        int128 feeAmount = int128(0);
+        // Get absolute output value regardless of sign convention
         uint256 absOutput;
+        if (rawDelta < 0) {
+            absOutput = uint256(uint128(-rawDelta));
+        } else if (rawDelta > 0) {
+            absOutput = uint256(uint128(rawDelta));
+        }
+        // if rawDelta == 0, absOutput stays 0
 
-        if (rawOutput > 0 && feeBps > 0) {
-            absOutput = uint256(uint128(rawOutput));
-            uint256 fee = (absOutput * feeBps) / BPS_DENOMINATOR;
-
-            if (fee > 0) {
-                feeAmount = int128(int256(fee));
-
-                // Mint the fee amount as ERC-6909 claim tokens to the feeRecipient
-                Currency outputCurrency = params.zeroForOne ? key.currency1 : key.currency0;
-                poolManager.mint(feeRecipient, CurrencyLibrary.toId(outputCurrency), fee);
-            }
-        } else if (rawOutput < 0) {
-            // Handle alternative sign convention just in case
-            absOutput = uint256(uint128(-rawOutput));
+        // Only take fee if there's actual output
+        int128 feeAmount = int128(0);
+        if (absOutput > 0 && feeBps > 0) {
             uint256 fee = (absOutput * feeBps) / BPS_DENOMINATOR;
 
             if (fee > 0) {
@@ -316,13 +308,12 @@ contract PaymentSettlementHook is BaseHook, Ownable {
 
         // ─── Step 5: Emit events ────────────────────────────────────
 
-        emit SettlementSwapExecuted(poolId, sender, batchSize, feeBps, int256(absOutput));
+        emit SettlementSwapExecuted(poolId, sender, batchSize, feeBps, rawDelta);
 
         if (feeAmount > 0) {
             emit SettlementFeeCollected(poolId, feeRecipient, uint256(uint128(feeAmount)), batchSize, feeBps);
         }
 
-        // Return the fee amount — positive means hook takes from output
         return (BaseHook.afterSwap.selector, feeAmount);
     }
 

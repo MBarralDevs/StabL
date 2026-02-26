@@ -342,9 +342,8 @@ contract PaymentSettlementHookTest is Test {
         assertGt(volume, 0, "Should have recorded volume");
     }
 
-    /// @notice Swap with feeBps=0 config → no fee collected
+    /// @notice Swap with feeBps=0 config → no fee collected but volume tracked
     function test_swap_zeroFeeConfig_noFeeCollected() public {
-        // Set baseFee=0, which means calculateDynamicFee returns 0
         hook.setFeeConfig(0, 0, 0, feeRecipient);
 
         bytes memory hookData = abi.encode(uint256(5), keccak256("batch-nofee"));
@@ -356,10 +355,10 @@ contract PaymentSettlementHookTest is Test {
             hookData
         );
 
-        // Settlements should update but fees should be 0
-        (uint256 settlements, uint256 fees,) = hook.getPoolMetrics(poolId);
+        (uint256 settlements, uint256 fees, uint256 volume) = hook.getPoolMetrics(poolId);
         assertEq(settlements, 5, "Should record 5 settlements");
         assertEq(fees, 0, "Should have zero fees with baseFee=0");
+        assertGt(volume, 0, "Should have recorded volume even with zero fees");
     }
 
     /// @notice Multiple swaps accumulate analytics correctly
