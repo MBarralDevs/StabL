@@ -353,17 +353,19 @@ contract BatchSettler is Ownable, Pausable, IUnlockCallback {
         IERC20(s.token).safeTransfer(address(poolManager), s.amount);
         poolManager.settle();
 
-        // Step 5: Determine output amount from delta
-        int128 outputDelta = zeroForOne ? delta.amount1() : delta.amount0();
+        // Step 5: Determine output amount from delta and take output
         uint256 outputAmount;
-        if (outputDelta < 0) {
-            outputAmount = uint256(uint128(-outputDelta));
-        } else {
-            outputAmount = uint256(uint128(outputDelta));
-        }
+        {
+            int128 outputDelta = zeroForOne ? delta.amount1() : delta.amount0();
+            if (outputDelta < 0) {
+                outputAmount = uint256(uint128(-outputDelta));
+            } else {
+                outputAmount = uint256(uint128(outputDelta));
+            }
 
-        // Step 6: Take output tokens directly to recipient
-        poolManager.take(outputCurrency, s.recipient, outputAmount);
+            // Step 6: Take output tokens directly to recipient
+            poolManager.take(outputCurrency, s.recipient, outputAmount);
+        }
 
         emit CrossTokenSettlement(batchId, s.merchant, s.token, s.outputToken, s.amount, outputAmount, s.recipient);
     }
