@@ -320,10 +320,9 @@ contract BatchSettler is Ownable, Pausable, IUnlockCallback {
      *
      *      Flow:
      *      1. Withdraw input tokens from PaymentPool → BatchSettler
-     *      2. Approve & settle input tokens into PoolManager
-     *      3. Swap via the registered pool (hook validates + takes fee)
-     *      4. Take output tokens from PoolManager → BatchSettler
-     *      5. Transfer output tokens to recipient
+     *      2. Execute the swap (creates input debt + output credit)
+     *      3. Sync + transfer + settle input tokens into PoolManager
+     *      4. Take output tokens from PoolManager → recipient
      */
     function _executeCrossTokenSwap(bytes32 batchId, Settlement memory s, uint256 batchSize) internal {
         PoolKey memory pool = settlementPools[s.token][s.outputToken];
@@ -332,32 +331,30 @@ contract BatchSettler is Ownable, Pausable, IUnlockCallback {
         paymentPool.withdraw(s.merchant, s.token, s.amount, address(this));
 
         // Step 2: Determine swap direction
-        // PoolKey.currency0 is always the lower-address token
         bool zeroForOne = (Currency.unwrap(pool.currency0) == s.token);
+        Currency inputCurrency = zeroForOne ? pool.currency0 : pool.currency1;
+        Currency outputCurrency = zeroForOne ? pool.currency1 : pool.currency0;
 
-        // Step 3: Settle input tokens into PoolManager
-        // Sync + transfer + settle pattern for ERC20
-        IERC20(s.token).safeTransfer(address(poolManager), s.amount);
-        poolManager.settle();
-
-        // Step 4: Execute the swap
-        // hookData carries batchSize + a unique nonce for the settlement
+        // Step 3: Execute the swap (creates delta: we owe input, we're owed output)
         bytes memory hookData = abi.encode(batchSize, keccak256(abi.encode(batchId, s.merchant)));
 
         BalanceDelta delta = poolManager.swap(
             pool,
             SwapParams({
                 zeroForOne: zeroForOne,
-                amountSpecified: -int256(s.amount), // exact input
+                amountSpecified: -int256(s.amount),
                 sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             }),
             hookData
         );
 
-        // Step 5: Determine output amount from the delta
-        int128 outputDelta = zeroForOne ? delta.amount1() : delta.amount0();
+        // Step 4: Settle input — sync, transfer, settle
+        poolManager.sync(inputCurrency);
+        IERC20(s.token).safeTransfer(address(poolManager), s.amount);
+        poolManager.settle();
 
-        // With afterSwapReturnDelta, output may be positive
+        // Step 5: Determine output amount from delta
+        int128 outputDelta = zeroForOne ? delta.amount1() : delta.amount0();
         uint256 outputAmount;
         if (outputDelta < 0) {
             outputAmount = uint256(uint128(-outputDelta));
@@ -365,8 +362,8 @@ contract BatchSettler is Ownable, Pausable, IUnlockCallback {
             outputAmount = uint256(uint128(outputDelta));
         }
 
-        // Step 6: Take output tokens from PoolManager and send to recipient
-        poolManager.take(zeroForOne ? pool.currency1 : pool.currency0, s.recipient, outputAmount);
+        // Step 6: Take output tokens directly to recipient
+        poolManager.take(outputCurrency, s.recipient, outputAmount);
 
         emit CrossTokenSettlement(batchId, s.merchant, s.token, s.outputToken, s.amount, outputAmount, s.recipient);
     }

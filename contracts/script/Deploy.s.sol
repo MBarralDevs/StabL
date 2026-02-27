@@ -49,7 +49,7 @@ contract Deploy is Script {
 
         // ─── Step 3: Deploy BatchSettler ─────────────────────────────────
         console.log("Step 3/6: Deploying BatchSettler...");
-        BatchSettler settler = new BatchSettler(address(pool), address(vault));
+        BatchSettler settler = new BatchSettler(address(pool), address(vault), address(0));
         console.log("  BatchSettler:", address(settler));
 
         // ─── Step 4: Wire contracts ──────────────────────────────────────
