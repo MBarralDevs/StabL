@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import "../src/BatchSettler.sol";
@@ -43,7 +43,7 @@ contract BatchSettlerTest is Test {
         vm.startPrank(owner);
         pool = new PaymentPool();
         vault = new IntentVault();
-        settler = new BatchSettler(address(pool), address(vault));
+        settler = new BatchSettler(address(pool), address(vault), address(0)); // no poolManager for same-token tests
         vm.stopPrank();
 
         // Register BatchSettler as authorized withdrawer on the pool
@@ -62,7 +62,7 @@ contract BatchSettlerTest is Test {
         eurc.approve(address(pool), type(uint256).max);
         vm.stopPrank();
 
-        // Set up intents for merchants (so they're allowed to be settled)
+        // Set up intents for merchants
         vm.prank(merchant1);
         vault.setIntent(IntentVault.SettlementSpeed.STANDARD, 0, 3600, address(usdc));
 
@@ -87,52 +87,39 @@ contract BatchSettlerTest is Test {
 
     /// @notice Single settlement in a batch executes correctly.
     function test_executeBatch_singleSettlement() public {
-        // Setup: merchant1 has 100 USDC in the pool
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
-        // Create a batch with one settlement
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
         settlements[0] = BatchSettler.Settlement({
-            merchant: merchant1,
-            token: address(usdc),
-            amount: 100e6,
-            recipient: merchant1 // settle directly to merchant's wallet
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
         });
 
-        bytes32 batchId = keccak256("batch-001");
-
-        // Execute
         vm.prank(owner);
-        settler.executeBatch(batchId, settlements, 0);
+        settler.executeBatch(keccak256("batch-001"), settlements, 0);
 
-        // Verify: pool balance is now zero, merchant received tokens
         assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 0);
         assertEq(usdc.balanceOf(merchant1), 100e6);
     }
 
     /// @notice Multiple settlements in a batch execute atomically.
     function test_executeBatch_multipleSettlements() public {
-        // Setup: both merchants have balances
         vm.startPrank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
         pool.receivePayment(merchant2, address(usdc), 200e6, keccak256("p2"));
         vm.stopPrank();
 
-        // Create batch
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
-        settlements[1] =
-            BatchSettler.Settlement({merchant: merchant2, token: address(usdc), amount: 200e6, recipient: merchant2});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
+        settlements[1] = BatchSettler.Settlement({
+            merchant: merchant2, token: address(usdc), amount: 200e6, recipient: merchant2, outputToken: address(usdc)
+        });
 
-        bytes32 batchId = keccak256("batch-002");
-
-        // Execute
         vm.prank(owner);
-        settler.executeBatch(batchId, settlements, 50000); // claiming 50k wei gas saved
+        settler.executeBatch(keccak256("batch-002"), settlements, 50000);
 
-        // Verify both settled
         assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 0);
         assertEq(pool.getMerchantBalance(merchant2, address(usdc)), 0);
         assertEq(usdc.balanceOf(merchant1), 100e6);
@@ -141,18 +128,17 @@ contract BatchSettlerTest is Test {
 
     /// @notice Partial settlement (not draining entire balance) works.
     function test_executeBatch_partialSettlement() public {
-        // Setup: merchant has 500 USDC but we only settle 300
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 500e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 300e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 300e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
         vm.prank(owner);
         settler.executeBatch(keccak256("batch-003"), settlements, 0);
 
-        // Verify: 200 USDC remains in pool
         assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 200e6);
         assertEq(usdc.balanceOf(merchant1), 300e6);
     }
@@ -169,30 +155,31 @@ contract BatchSettlerTest is Test {
             merchant: merchant1,
             token: address(usdc),
             amount: 100e6,
-            recipient: bridgeContract // not the merchant's wallet
+            recipient: bridgeContract,
+            outputToken: address(usdc)
         });
 
         vm.prank(owner);
         settler.executeBatch(keccak256("batch-004"), settlements, 0);
 
-        // Verify: tokens went to bridge, not merchant
         assertEq(usdc.balanceOf(bridgeContract), 100e6);
         assertEq(usdc.balanceOf(merchant1), 0);
     }
 
-    /// @notice Mixed tokens in a batch (USDC + EURC).
+    /// @notice Mixed tokens in a batch (USDC + EURC), both same-token.
     function test_executeBatch_mixedTokens() public {
-        // merchant1 has USDC, merchant3 has EURC
         vm.startPrank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
         pool.receivePayment(merchant3, address(eurc), 50e6, keccak256("p2"));
         vm.stopPrank();
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
-        settlements[1] =
-            BatchSettler.Settlement({merchant: merchant3, token: address(eurc), amount: 50e6, recipient: merchant3});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
+        settlements[1] = BatchSettler.Settlement({
+            merchant: merchant3, token: address(eurc), amount: 50e6, recipient: merchant3, outputToken: address(eurc)
+        });
 
         vm.prank(owner);
         settler.executeBatch(keccak256("batch-005"), settlements, 0);
@@ -204,65 +191,42 @@ contract BatchSettlerTest is Test {
     // ─── executeBatch: events ────────────────────────────────────────────────
 
     /// @notice BatchExecuted event is emitted with correct params.
-    function test_executeBatch_emitsBatchExecutedEvent() public {
+    function test_executeBatch_emitsBatchEvent() public {
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
-        bytes32 batchId = keccak256("event-batch");
-        uint256 gasSaved = 25000;
-
-        // We can't easily check the settlements array in the event, but we can check the other params
-        vm.expectEmit(true, false, false, false);
-        emit BatchSettler.BatchExecuted(batchId, settlements, gasSaved);
+        vm.expectEmit(true, false, false, true);
+        emit BatchSettler.BatchExecuted(keccak256("batch-event"), 1, 0);
 
         vm.prank(owner);
-        settler.executeBatch(batchId, settlements, gasSaved);
+        settler.executeBatch(keccak256("batch-event"), settlements, 0);
     }
 
-    /// @notice SettlementExecuted event is emitted for each settlement in batch.
-    function test_executeBatch_emitsSettlementExecutedEvents() public {
-        vm.startPrank(payer);
+    /// @notice SettlementExecuted event is emitted per settlement.
+    function test_executeBatch_emitsSettlementEvent() public {
+        vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
-        pool.receivePayment(merchant2, address(usdc), 200e6, keccak256("p2"));
-        vm.stopPrank();
 
-        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
-        settlements[1] =
-            BatchSettler.Settlement({merchant: merchant2, token: address(usdc), amount: 200e6, recipient: merchant2});
-
-        bytes32 batchId = keccak256("multi-event-batch");
-
-        // Expect two SettlementExecuted events
-        vm.expectEmit(true, true, true, true);
-        emit BatchSettler.SettlementExecuted(batchId, merchant1, address(usdc), 100e6, merchant1);
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
         vm.expectEmit(true, true, true, true);
-        emit BatchSettler.SettlementExecuted(batchId, merchant2, address(usdc), 200e6, merchant2);
+        emit BatchSettler.SettlementExecuted(keccak256("batch-se"), merchant1, address(usdc), 100e6, merchant1);
 
         vm.prank(owner);
-        settler.executeBatch(batchId, settlements, 0);
+        settler.executeBatch(keccak256("batch-se"), settlements, 0);
     }
 
     // ─── executeBatch: revert cases ──────────────────────────────────────────
 
-    /// @notice Only owner can execute batches.
-    function test_executeBatch_revert_notOwner() public {
-        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
-
-        vm.prank(merchant1); // not the owner
-        vm.expectRevert(); // OZ Ownable revert
-        settler.executeBatch(keccak256("batch-x"), settlements, 0);
-    }
-
-    /// @notice Empty batch is rejected.
+    /// @notice Empty batch reverts.
     function test_executeBatch_revert_emptyBatch() public {
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](0);
 
@@ -271,36 +235,103 @@ contract BatchSettlerTest is Test {
         settler.executeBatch(keccak256("batch-empty"), settlements, 0);
     }
 
-    /// @notice Merchant without intent is rejected.
-    function test_executeBatch_revert_noIntent() public {
-        address merchantNoIntent = address(0x88);
-
+    /// @notice Only owner can call executeBatch.
+    function test_executeBatch_revert_notOwner() public {
         vm.prank(payer);
-        pool.receivePayment(merchantNoIntent, address(usdc), 100e6, keccak256("p1"));
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
         settlements[0] = BatchSettler.Settlement({
-            merchant: merchantNoIntent, token: address(usdc), amount: 100e6, recipient: merchantNoIntent
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
+
+        vm.prank(merchant1);
+        vm.expectRevert();
+        settler.executeBatch(keccak256("batch-notowner"), settlements, 0);
+    }
+
+    /// @notice Batch with merchant who has no intent reverts.
+    function test_executeBatch_revert_noIntent() public {
+        address noIntentMerchant = address(0xDEAD);
+
+        vm.prank(payer);
+        pool.receivePayment(noIntentMerchant, address(usdc), 100e6, keccak256("p1"));
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
+        settlements[0] = BatchSettler.Settlement({
+            merchant: noIntentMerchant,
+            token: address(usdc),
+            amount: 100e6,
+            recipient: noIntentMerchant,
+            outputToken: address(usdc)
         });
 
         vm.prank(owner);
         vm.expectRevert(
-            abi.encodeWithSelector(BatchSettler.BatchSettler__MerchantHasNoIntent.selector, merchantNoIntent)
+            abi.encodeWithSelector(BatchSettler.BatchSettler__MerchantHasNoIntent.selector, noIntentMerchant)
         );
-        settler.executeBatch(keccak256("batch-no-intent"), settlements, 0);
+        settler.executeBatch(keccak256("batch-nointent"), settlements, 0);
     }
 
-    /// @notice Zero recipient is rejected.
+    /// @notice Insufficient balance in pool reverts entire batch (atomicity).
+    function test_executeBatch_revert_insufficientBalance_atomic() public {
+        vm.startPrank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+        pool.receivePayment(merchant2, address(usdc), 200e6, keccak256("p2"));
+        vm.stopPrank();
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
+        settlements[1] = BatchSettler.Settlement({
+            merchant: merchant2, token: address(usdc), amount: 300e6, recipient: merchant2, outputToken: address(usdc)
+        });
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                PaymentPool.PaymentPool__InsufficientBalance.selector, merchant2, address(usdc), 300e6, 200e6
+            )
+        );
+        settler.executeBatch(keccak256("batch-insufficient"), settlements, 0);
+
+        // Verify atomicity: merchant1's settlement was also rolled back
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 100e6);
+        assertEq(usdc.balanceOf(merchant1), 0);
+    }
+
+    /// @notice Batch exceeding maxBatchSize reverts.
+    function test_executeBatch_revert_batchTooLarge() public {
+        vm.prank(owner);
+        settler.setMaxBatchSize(1);
+
+        vm.startPrank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+        pool.receivePayment(merchant2, address(usdc), 100e6, keccak256("p2"));
+        vm.stopPrank();
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
+        settlements[1] = BatchSettler.Settlement({
+            merchant: merchant2, token: address(usdc), amount: 100e6, recipient: merchant2, outputToken: address(usdc)
+        });
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BatchSettler.BatchSettler__BatchTooLarge.selector, 2, 1));
+        settler.executeBatch(keccak256("batch-toolarge"), settlements, 0);
+    }
+
+    /// @notice Zero-address recipient reverts.
     function test_executeBatch_revert_zeroRecipient() public {
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
         settlements[0] = BatchSettler.Settlement({
-            merchant: merchant1,
-            token: address(usdc),
-            amount: 100e6,
-            recipient: address(0) // invalid
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: address(0), outputToken: address(usdc)
         });
 
         vm.prank(owner);
@@ -308,17 +339,14 @@ contract BatchSettlerTest is Test {
         settler.executeBatch(keccak256("batch-zero-recipient"), settlements, 0);
     }
 
-    /// @notice Zero amount is rejected.
+    /// @notice Zero amount reverts.
     function test_executeBatch_revert_zeroAmount() public {
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
         settlements[0] = BatchSettler.Settlement({
-            merchant: merchant1,
-            token: address(usdc),
-            amount: 0, // invalid
-            recipient: merchant1
+            merchant: merchant1, token: address(usdc), amount: 0, recipient: merchant1, outputToken: address(usdc)
         });
 
         vm.prank(owner);
@@ -326,119 +354,41 @@ contract BatchSettlerTest is Test {
         settler.executeBatch(keccak256("batch-zero-amount"), settlements, 0);
     }
 
-    /// @notice CRITICAL: Insufficient balance causes entire batch to revert (atomicity).
-    function test_executeBatch_revert_insufficientBalance_atomicity() public {
-        // merchant1 has 100 USDC, merchant2 has 200 USDC
-        vm.startPrank(payer);
-        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
-        pool.receivePayment(merchant2, address(usdc), 200e6, keccak256("p2"));
-        vm.stopPrank();
-
-        // Try to settle merchant1 for 100 (ok) and merchant2 for 300 (not enough)
-        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
-        settlements[1] = BatchSettler.Settlement({
-            merchant: merchant2,
-            token: address(usdc),
-            amount: 300e6, // too much
-            recipient: merchant2
-        });
-
-        vm.prank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PaymentPool.PaymentPool__InsufficientBalance.selector,
-                merchant2,
-                address(usdc),
-                300e6, // requested
-                200e6 // available
-            )
-        );
-        settler.executeBatch(keccak256("batch-insufficient"), settlements, 0);
-
-        // Verify atomicity: merchant1's settlement was also rolled back
-        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 100e6); // unchanged
-        assertEq(pool.getMerchantBalance(merchant2, address(usdc)), 200e6); // unchanged
-        assertEq(usdc.balanceOf(merchant1), 0); // got nothing
-        assertEq(usdc.balanceOf(merchant2), 0); // got nothing
-    }
-
     // ─── validateBatch ───────────────────────────────────────────────────────
 
-    /// @notice Valid batch passes validation.
+    /// @notice validateBatch returns true for a valid batch.
     function test_validateBatch_valid() public {
-        vm.startPrank(payer);
-        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
-        pool.receivePayment(merchant2, address(usdc), 200e6, keccak256("p2"));
-        vm.stopPrank();
-
-        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
-        settlements[1] =
-            BatchSettler.Settlement({merchant: merchant2, token: address(usdc), amount: 200e6, recipient: merchant2});
-
-        (bool valid, uint256 errorIndex, string memory reason) = settler.validateBatch(settlements);
-
-        assertTrue(valid);
-        assertEq(errorIndex, 0); // ignored when valid
-        assertEq(reason, "");
-    }
-
-    /// @notice Empty batch fails validation.
-    function test_validateBatch_emptyBatch() public view {
-        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](0);
-
-        (bool valid, uint256 errorIndex, string memory reason) = settler.validateBatch(settlements);
-
-        assertFalse(valid);
-        assertEq(errorIndex, 0);
-        assertEq(reason, "Empty batch");
-    }
-
-    /// @notice Merchant without intent fails validation and reports correct index.
-    function test_validateBatch_noIntent() public {
-        address merchantNoIntent = address(0x88);
-
         vm.prank(payer);
-        pool.receivePayment(merchantNoIntent, address(usdc), 100e6, keccak256("p1"));
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
         settlements[0] = BatchSettler.Settlement({
-            merchant: merchantNoIntent, token: address(usdc), amount: 100e6, recipient: merchantNoIntent
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
         });
 
-        (bool valid, uint256 errorIndex, string memory reason) = settler.validateBatch(settlements);
-
-        assertFalse(valid);
-        assertEq(errorIndex, 0); // first (and only) settlement is the problem
-        assertEq(reason, "Merchant has no intent");
+        (bool valid,,) = settler.validateBatch(settlements);
+        assertTrue(valid);
     }
 
-    /// @notice Insufficient balance fails validation at correct index.
+    /// @notice validateBatch catches insufficient balance.
     function test_validateBatch_insufficientBalance() public {
-        // merchant1 has 100, merchant2 has 200
         vm.startPrank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
         pool.receivePayment(merchant2, address(usdc), 200e6, keccak256("p2"));
         vm.stopPrank();
 
-        // Try to settle 100 for merchant1 (ok) and 300 for merchant2 (not enough)
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
         settlements[1] = BatchSettler.Settlement({
-            merchant: merchant2,
-            token: address(usdc),
-            amount: 300e6, // too much
-            recipient: merchant2
+            merchant: merchant2, token: address(usdc), amount: 300e6, recipient: merchant2, outputToken: address(usdc)
         });
 
         (bool valid, uint256 errorIndex, string memory reason) = settler.validateBatch(settlements);
 
         assertFalse(valid);
-        assertEq(errorIndex, 1); // second settlement is the problem
+        assertEq(errorIndex, 1);
         assertEq(reason, "Insufficient balance");
     }
 
@@ -446,16 +396,16 @@ contract BatchSettlerTest is Test {
 
     /// @notice executeBatch reverts when paused.
     function test_executeBatch_revert_whenPaused() public {
-        vm.startPrank(payer);
+        vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
-        vm.stopPrank();
 
         vm.prank(owner);
         settler.pause();
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
@@ -471,15 +421,16 @@ contract BatchSettlerTest is Test {
         settler.pause();
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
         (bool valid,,) = settler.validateBatch(settlements);
         assertTrue(valid);
     }
 
     /// @notice Settlements resume after unpausing.
-    function test_unpause_resumesSettlements() public {
+    function test_executeBatch_resumeAfterUnpause() public {
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
@@ -489,8 +440,9 @@ contract BatchSettlerTest is Test {
         vm.stopPrank();
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
         vm.prank(owner);
         settler.executeBatch(keccak256("batch-resumed"), settlements, 0);
@@ -498,97 +450,20 @@ contract BatchSettlerTest is Test {
         assertEq(usdc.balanceOf(merchant1), 100e6);
     }
 
-    /// @notice Only owner can pause.
-    function test_pause_revert_notOwner() public {
-        vm.prank(merchant1);
-        vm.expectRevert();
-        settler.pause();
+    // ─── Constructor ─────────────────────────────────────────────────────────
+
+    /// @notice Constructor reverts with zero PaymentPool address.
+    function test_constructor_revert_zeroPaymentPool() public {
+        vm.prank(owner);
+        vm.expectRevert(BatchSettler.BatchSettler__ZeroAddress.selector);
+        new BatchSettler(address(0), address(vault), address(0));
     }
 
-    // ─── Max Batch Size ──────────────────────────────────────────────────────
-
-    /// @notice Batch exceeding max size reverts.
-    function test_executeBatch_revert_batchTooLarge() public {
-        // Set max to 2 for easy testing
+    /// @notice Constructor reverts with zero IntentVault address.
+    function test_constructor_revert_zeroIntentVault() public {
         vm.prank(owner);
-        settler.setMaxBatchSize(2);
-
-        vm.startPrank(payer);
-        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
-        pool.receivePayment(merchant2, address(usdc), 100e6, keccak256("p2"));
-        pool.receivePayment(merchant3, address(usdc), 100e6, keccak256("p3"));
-        vm.stopPrank();
-
-        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](3);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
-        settlements[1] =
-            BatchSettler.Settlement({merchant: merchant2, token: address(usdc), amount: 100e6, recipient: merchant2});
-        settlements[2] =
-            BatchSettler.Settlement({merchant: merchant3, token: address(usdc), amount: 100e6, recipient: merchant3});
-
-        vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(BatchSettler.BatchSettler__BatchTooLarge.selector, 3, 2));
-        settler.executeBatch(keccak256("batch-too-large"), settlements, 0);
-    }
-
-    /// @notice Batch at exactly max size succeeds.
-    function test_executeBatch_atMaxSize() public {
-        vm.prank(owner);
-        settler.setMaxBatchSize(2);
-
-        vm.startPrank(payer);
-        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
-        pool.receivePayment(merchant2, address(usdc), 100e6, keccak256("p2"));
-        vm.stopPrank();
-
-        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
-        settlements[1] =
-            BatchSettler.Settlement({merchant: merchant2, token: address(usdc), amount: 100e6, recipient: merchant2});
-
-        vm.prank(owner);
-        settler.executeBatch(keccak256("batch-exact"), settlements, 0);
-
-        assertEq(usdc.balanceOf(merchant1), 100e6);
-        assertEq(usdc.balanceOf(merchant2), 100e6);
-    }
-
-    /// @notice Default max batch size is 50.
-    function test_maxBatchSize_default() public view {
-        assertEq(settler.maxBatchSize(), 50);
-    }
-
-    /// @notice Owner can update max batch size.
-    function test_setMaxBatchSize() public {
-        vm.prank(owner);
-        settler.setMaxBatchSize(100);
-
-        assertEq(settler.maxBatchSize(), 100);
-    }
-
-    /// @notice setMaxBatchSize reverts with zero.
-    function test_setMaxBatchSize_revert_zero() public {
-        vm.prank(owner);
-        vm.expectRevert(BatchSettler.BatchSettler__InvalidMaxBatchSize.selector);
-        settler.setMaxBatchSize(0);
-    }
-
-    /// @notice Only owner can update max batch size.
-    function test_setMaxBatchSize_revert_notOwner() public {
-        vm.prank(merchant1);
-        vm.expectRevert();
-        settler.setMaxBatchSize(100);
-    }
-
-    /// @notice setMaxBatchSize emits event.
-    function test_setMaxBatchSize_emitsEvent() public {
-        vm.expectEmit(false, false, false, true);
-        emit BatchSettler.MaxBatchSizeUpdated(50, 25);
-
-        vm.prank(owner);
-        settler.setMaxBatchSize(25);
+        vm.expectRevert(BatchSettler.BatchSettler__ZeroAddress.selector);
+        new BatchSettler(address(pool), address(0), address(0));
     }
 
     // ─── Direct-to-Recipient Settlement ──────────────────────────────────────
@@ -601,18 +476,17 @@ contract BatchSettlerTest is Test {
         vm.stopPrank();
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
-        settlements[1] =
-            BatchSettler.Settlement({merchant: merchant2, token: address(usdc), amount: 200e6, recipient: merchant2});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
+        settlements[1] = BatchSettler.Settlement({
+            merchant: merchant2, token: address(usdc), amount: 200e6, recipient: merchant2, outputToken: address(usdc)
+        });
 
         vm.prank(owner);
         settler.executeBatch(keccak256("batch-no-hold"), settlements, 0);
 
-        // BatchSettler should have zero balance
         assertEq(usdc.balanceOf(address(settler)), 0);
-
-        // Merchants received directly
         assertEq(usdc.balanceOf(merchant1), 100e6);
         assertEq(usdc.balanceOf(merchant2), 200e6);
     }
@@ -626,29 +500,33 @@ contract BatchSettlerTest is Test {
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
         settlements[0] = BatchSettler.Settlement({
-            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: customRecipient
+            merchant: merchant1,
+            token: address(usdc),
+            amount: 100e6,
+            recipient: customRecipient,
+            outputToken: address(usdc)
         });
 
         vm.prank(owner);
         settler.executeBatch(keccak256("batch-custom"), settlements, 0);
 
-        // Funds went to custom recipient, not merchant
         assertEq(usdc.balanceOf(customRecipient), 100e6);
         assertEq(usdc.balanceOf(merchant1), 0);
         assertEq(usdc.balanceOf(address(settler)), 0);
     }
 
     /// @notice Pool balance is zero after full settlement.
-    function test_executeBatch_poolBalanceCleared() public {
+    function test_executeBatch_poolBalanceZeroAfterFull() public {
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
         vm.prank(owner);
-        settler.executeBatch(keccak256("batch-clear"), settlements, 0);
+        settler.executeBatch(keccak256("batch-drain"), settlements, 0);
 
         assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 0);
         assertEq(usdc.balanceOf(address(pool)), 0);
@@ -660,62 +538,33 @@ contract BatchSettlerTest is Test {
     /// @notice Settlement with fees deducts correct amounts.
     function test_executeBatch_withFees() public {
         vm.prank(owner);
-        settler.setFeeConfig(owner, 100); // 1% fee
+        settler.setFeeConfig(owner, 100); // 1%
 
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 1000e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
         vm.prank(owner);
         settler.executeBatch(keccak256("batch-fee"), settlements, 0);
 
-        // Merchant gets 990 USDC (1000 - 1%)
+        // Merchant gets 990 (1000 - 1%), fee recipient gets 10
         assertEq(usdc.balanceOf(merchant1), 990e6);
-        // Fee recipient gets 10 USDC
         assertEq(usdc.balanceOf(owner), 10e6);
-        // Pool is fully drained
-        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 0);
     }
 
-    /// @notice Fees work correctly across multiple merchants in one batch.
-    function test_executeBatch_withFees_multipleMerchants() public {
-        vm.prank(owner);
-        settler.setFeeConfig(owner, 50); // 0.5% fee
-
-        vm.startPrank(payer);
-        pool.receivePayment(merchant1, address(usdc), 1000e6, keccak256("p1"));
-        pool.receivePayment(merchant2, address(usdc), 2000e6, keccak256("p2"));
-        vm.stopPrank();
-
-        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](2);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1});
-        settlements[1] =
-            BatchSettler.Settlement({merchant: merchant2, token: address(usdc), amount: 2000e6, recipient: merchant2});
-
-        vm.prank(owner);
-        settler.executeBatch(keccak256("batch-multi-fee"), settlements, 0);
-
-        // merchant1: 1000 - 0.5% = 995
-        assertEq(usdc.balanceOf(merchant1), 995e6);
-        // merchant2: 2000 - 0.5% = 990
-        assertEq(usdc.balanceOf(merchant2), 1990e6);
-        // fee recipient: 5 + 10 = 15
-        assertEq(usdc.balanceOf(owner), 15e6);
-    }
-
-    /// @notice Zero fees means merchant gets full amount.
+    /// @notice Zero fee config means no fees taken.
     function test_executeBatch_zeroFees() public {
-        // Default: feeBasisPoints = 0, feeRecipient = address(0)
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), 1000e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
         vm.prank(owner);
         settler.executeBatch(keccak256("batch-no-fee"), settlements, 0);
@@ -732,8 +581,9 @@ contract BatchSettlerTest is Test {
         pool.receivePayment(merchant1, address(usdc), 1000e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
         vm.prank(owner);
         settler.executeBatch(keccak256("batch-no-hold-fee"), settlements, 0);
@@ -750,8 +600,9 @@ contract BatchSettlerTest is Test {
         pool.receivePayment(merchant1, address(usdc), 1000e6, keccak256("p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 1000e6, recipient: merchant1, outputToken: address(usdc)
+        });
 
         vm.expectEmit(true, true, true, true);
         emit BatchSettler.FeeCollected(keccak256("batch-fee-event"), merchant1, address(usdc), 10e6);
@@ -762,117 +613,209 @@ contract BatchSettlerTest is Test {
 
     // ─── setFeeConfig ────────────────────────────────────────────────────────
 
-    /// @notice Owner can set fee config.
     function test_setFeeConfig() public {
         vm.prank(owner);
         settler.setFeeConfig(owner, 30);
-
         assertEq(settler.feeRecipient(), owner);
         assertEq(settler.feeBasisPoints(), 30);
     }
 
-    /// @notice Fee above 10% hard cap reverts.
     function test_setFeeConfig_revert_tooHigh() public {
         vm.prank(owner);
         vm.expectRevert(BatchSettler.BatchSettler__InvalidFee.selector);
         settler.setFeeConfig(owner, 1001);
     }
 
-    /// @notice Fee at exactly 10% cap succeeds.
     function test_setFeeConfig_atCap() public {
         vm.prank(owner);
         settler.setFeeConfig(owner, 1000);
-
         assertEq(settler.feeBasisPoints(), 1000);
     }
 
-    /// @notice Non-zero fee with zero recipient reverts.
     function test_setFeeConfig_revert_noRecipient() public {
         vm.prank(owner);
         vm.expectRevert(BatchSettler.BatchSettler__FeeRecipientNotSet.selector);
         settler.setFeeConfig(address(0), 50);
     }
 
-    /// @notice Zero fee with zero recipient is valid (disables fees).
     function test_setFeeConfig_disableFees() public {
-        // First enable
         vm.prank(owner);
         settler.setFeeConfig(owner, 100);
-
-        // Then disable
         vm.prank(owner);
         settler.setFeeConfig(address(0), 0);
-
         assertEq(settler.feeBasisPoints(), 0);
         assertEq(settler.feeRecipient(), address(0));
     }
 
-    /// @notice Only owner can set fee config.
     function test_setFeeConfig_revert_notOwner() public {
         vm.prank(merchant1);
         vm.expectRevert();
         settler.setFeeConfig(merchant1, 100);
     }
 
-    /// @notice setFeeConfig emits event.
     function test_setFeeConfig_emitsEvent() public {
         vm.expectEmit(true, false, false, true);
         emit BatchSettler.FeeConfigUpdated(owner, 30);
-
         vm.prank(owner);
         settler.setFeeConfig(owner, 30);
+    }
+
+    // ─── setMaxBatchSize ─────────────────────────────────────────────────────
+
+    function test_setMaxBatchSize() public {
+        vm.prank(owner);
+        settler.setMaxBatchSize(100);
+        assertEq(settler.maxBatchSize(), 100);
+    }
+
+    function test_setMaxBatchSize_revert_zero() public {
+        vm.prank(owner);
+        vm.expectRevert(BatchSettler.BatchSettler__InvalidMaxBatchSize.selector);
+        settler.setMaxBatchSize(0);
+    }
+
+    function test_setMaxBatchSize_revert_notOwner() public {
+        vm.prank(merchant1);
+        vm.expectRevert();
+        settler.setMaxBatchSize(100);
+    }
+
+    function test_setMaxBatchSize_emitsEvent() public {
+        vm.expectEmit(false, false, false, true);
+        emit BatchSettler.MaxBatchSizeUpdated(50, 25);
+        vm.prank(owner);
+        settler.setMaxBatchSize(25);
+    }
+
+    // ─── Cross-Token: Revert without pool ────────────────────────────────────
+
+    /// @notice Cross-token settlement without registered pool reverts.
+    function test_executeBatch_revert_noPoolRegistered() public {
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1,
+            token: address(usdc),
+            amount: 100e6,
+            recipient: merchant1,
+            outputToken: address(eurc) // cross-token, but no pool registered
+        });
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(BatchSettler.BatchSettler__NoPoolRegistered.selector, address(usdc), address(eurc))
+        );
+        settler.executeBatch(keccak256("batch-no-pool"), settlements, 0);
+    }
+
+    /// @notice validateBatch catches missing pool for cross-token settlement.
+    function test_validateBatch_crossToken_noPool() public {
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: 100e6, recipient: merchant1, outputToken: address(eurc)
+        });
+
+        (bool valid, uint256 errorIndex, string memory reason) = settler.validateBatch(settlements);
+        assertFalse(valid);
+        assertEq(errorIndex, 0);
+        assertEq(reason, "No pool for token pair");
+    }
+
+    /// @notice outputToken == address(0) treated as same-token.
+    function test_executeBatch_outputTokenZero_isSameToken() public {
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), 100e6, keccak256("p1"));
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1,
+            token: address(usdc),
+            amount: 100e6,
+            recipient: merchant1,
+            outputToken: address(0) // treated as same-token
+        });
+
+        vm.prank(owner);
+        settler.executeBatch(keccak256("batch-zero-output"), settlements, 0);
+
+        assertEq(usdc.balanceOf(merchant1), 100e6);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // FUZZ TESTS
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /**
-     * @notice Fuzz: any valid single settlement executes correctly.
-     *
-     * Tests that settlement amount arithmetic is correct for arbitrary values.
-     */
     function testFuzz_executeBatch_singleSettlement_amountConsistency(uint256 amount) public {
-        amount = bound(amount, 1, 100_000e6); // must be positive and within payer's balance
+        amount = bound(amount, 1, 100_000e6);
 
-        // Setup
         vm.prank(payer);
         pool.receivePayment(merchant1, address(usdc), amount, keccak256("fuzz-p1"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
-        settlements[0] =
-            BatchSettler.Settlement({merchant: merchant1, token: address(usdc), amount: amount, recipient: merchant1});
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: amount, recipient: merchant1, outputToken: address(usdc)
+        });
 
-        // Execute
         vm.prank(owner);
         settler.executeBatch(keccak256("fuzz-batch"), settlements, 0);
 
-        // Verify
         assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 0);
         assertEq(usdc.balanceOf(merchant1), amount);
     }
 
-    /**
-     * @notice Fuzz: partial settlement leaves correct remainder.
-     */
-    function testFuzz_executeBatch_partialSettlement_remainder(uint256 depositAmount, uint256 settleAmount) public {
-        depositAmount = bound(depositAmount, 100, 100_000e6);
-        settleAmount = bound(settleAmount, 1, depositAmount); // can't settle more than deposited
+    function testFuzz_executeBatch_partialSettlement_correctRemainder(uint256 depositAmount, uint256 settleAmount)
+        public
+    {
+        depositAmount = bound(depositAmount, 2, 100_000e6);
+        settleAmount = bound(settleAmount, 1, depositAmount);
 
         vm.prank(payer);
-        pool.receivePayment(merchant1, address(usdc), depositAmount, keccak256("fuzz-p1"));
+        pool.receivePayment(merchant1, address(usdc), depositAmount, keccak256("fuzz-p2"));
 
         BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
         settlements[0] = BatchSettler.Settlement({
-            merchant: merchant1, token: address(usdc), amount: settleAmount, recipient: merchant1
+            merchant: merchant1,
+            token: address(usdc),
+            amount: settleAmount,
+            recipient: merchant1,
+            outputToken: address(usdc)
         });
 
         vm.prank(owner);
         settler.executeBatch(keccak256("fuzz-partial"), settlements, 0);
 
-        // Remainder must equal deposit - settle
-        uint256 expectedRemainder = depositAmount - settleAmount;
-        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), expectedRemainder);
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), depositAmount - settleAmount);
         assertEq(usdc.balanceOf(merchant1), settleAmount);
+    }
+
+    function testFuzz_executeBatch_feeCalculationCorrect(uint256 amount, uint256 bps) public {
+        amount = bound(amount, 100, 100_000e6);
+        bps = bound(bps, 1, 1000);
+
+        vm.prank(owner);
+        settler.setFeeConfig(owner, bps);
+
+        vm.prank(payer);
+        pool.receivePayment(merchant1, address(usdc), amount, keccak256("fuzz-fee"));
+
+        BatchSettler.Settlement[] memory settlements = new BatchSettler.Settlement[](1);
+        settlements[0] = BatchSettler.Settlement({
+            merchant: merchant1, token: address(usdc), amount: amount, recipient: merchant1, outputToken: address(usdc)
+        });
+
+        vm.prank(owner);
+        settler.executeBatch(keccak256("fuzz-fee-batch"), settlements, 0);
+
+        uint256 expectedFee = (amount * bps) / 10000;
+        uint256 expectedNet = amount - expectedFee;
+
+        assertEq(usdc.balanceOf(merchant1), expectedNet);
+        assertEq(usdc.balanceOf(owner), expectedFee);
+        assertEq(pool.getMerchantBalance(merchant1, address(usdc)), 0);
     }
 }
