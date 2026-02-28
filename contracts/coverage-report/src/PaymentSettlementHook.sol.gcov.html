@@ -31,13 +31,13 @@
             <td class="headerValue">lcov.info</td>
             <td></td>
             <td class="headerItem">Lines:</td>
-            <td class="headerCovTableEntry">69</td>
+            <td class="headerCovTableEntry">0</td>
             <td class="headerCovTableEntry">71</td>
-            <td class="headerCovTableEntryHi">97.2 %</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
           </tr>
           <tr>
             <td class="headerItem">Date:</td>
-            <td class="headerValue">2026-02-26 17:12:39</td>
+            <td class="headerValue">2026-02-28 17:55:00</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntry">8</td>
@@ -202,21 +202,21 @@
 <a name="131"><span class="lineNum">     131 </span>                :            :      * @param _decayRate    Bps reduction per additional settlement (e.g. 5).</a>
 <a name="132"><span class="lineNum">     132 </span>                :            :      * @param _feeRecipient Address that receives fees.</a>
 <a name="133"><span class="lineNum">     133 </span>                :            :      */</a>
-<a name="134"><span class="lineNum">     134 </span>                :<span class="lineCov">         40 :     constructor(IPoolManager _poolManager, uint256 _baseFee, uint256 _minFee, uint256 _decayRate, address _feeRecipient)</span></a>
+<a name="134"><span class="lineNum">     134 </span>                :<span class="lineNoCov">          0 :     constructor(IPoolManager _poolManager, uint256 _baseFee, uint256 _minFee, uint256 _decayRate, address _feeRecipient)</span></a>
 <a name="135"><span class="lineNum">     135 </span>                :            :         BaseHook(_poolManager)</a>
 <a name="136"><span class="lineNum">     136 </span>                :            :         Ownable(msg.sender)</a>
 <a name="137"><span class="lineNum">     137 </span>                :            :     {</a>
 <a name="138"><span class="lineNum">     138 </span>                :            :         // Validate fee config at construction</a>
-<a name="139"><span class="lineNum">     139 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">         40 :         if (_baseFee &gt; MAX_BASE_FEE) revert Hook__BaseFeeExceedsCap(_baseFee, MAX_BASE_FEE);</span></a>
-<a name="140"><span class="lineNum">     140 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">         39 :         if (_minFee &gt; _baseFee) revert Hook__MinFeeExceedsBaseFee(_minFee, _baseFee);</span></a>
-<a name="141"><span class="lineNum">     141 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">         38 :         if (_baseFee &gt; 0 &amp;&amp; _feeRecipient == address(0)) revert Hook__FeeRecipientNotSet();</span></a>
+<a name="139"><span class="lineNum">     139 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineNoCov">          0 :         if (_baseFee &gt; MAX_BASE_FEE) revert Hook__BaseFeeExceedsCap(_baseFee, MAX_BASE_FEE);</span></a>
+<a name="140"><span class="lineNum">     140 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineNoCov">          0 :         if (_minFee &gt; _baseFee) revert Hook__MinFeeExceedsBaseFee(_minFee, _baseFee);</span></a>
+<a name="141"><span class="lineNum">     141 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineNoCov">          0 :         if (_baseFee &gt; 0 &amp;&amp; _feeRecipient == address(0)) revert Hook__FeeRecipientNotSet();</span></a>
 <a name="142"><span class="lineNum">     142 </span>                :            : </a>
-<a name="143"><span class="lineNum">     143 </span>                :<span class="lineCov">         37 :         baseFee = _baseFee;</span></a>
-<a name="144"><span class="lineNum">     144 </span>                :<span class="lineCov">         37 :         minFee = _minFee;</span></a>
-<a name="145"><span class="lineNum">     145 </span>                :<span class="lineCov">         37 :         decayRate = _decayRate;</span></a>
-<a name="146"><span class="lineNum">     146 </span>                :<span class="lineCov">         37 :         feeRecipient = _feeRecipient;</span></a>
+<a name="143"><span class="lineNum">     143 </span>                :<span class="lineNoCov">          0 :         baseFee = _baseFee;</span></a>
+<a name="144"><span class="lineNum">     144 </span>                :<span class="lineNoCov">          0 :         minFee = _minFee;</span></a>
+<a name="145"><span class="lineNum">     145 </span>                :<span class="lineNoCov">          0 :         decayRate = _decayRate;</span></a>
+<a name="146"><span class="lineNum">     146 </span>                :<span class="lineNoCov">          0 :         feeRecipient = _feeRecipient;</span></a>
 <a name="147"><span class="lineNum">     147 </span>                :            : </a>
-<a name="148"><span class="lineNum">     148 </span>                :<span class="lineCov">         37 :         emit FeeConfigUpdated(_baseFee, _minFee, _decayRate, _feeRecipient);</span></a>
+<a name="148"><span class="lineNum">     148 </span>                :<span class="lineNoCov">          0 :         emit FeeConfigUpdated(_baseFee, _minFee, _decayRate, _feeRecipient);</span></a>
 <a name="149"><span class="lineNum">     149 </span>                :            :     }</a>
 <a name="150"><span class="lineNum">     150 </span>                :            : </a>
 <a name="151"><span class="lineNum">     151 </span>                :            :     // ─── Hook Permissions ───────────────────────────────────────────────</a>
@@ -231,8 +231,8 @@
 <a name="160"><span class="lineNum">     160 </span>                :            :      *      We enable afterSwapReturnDelta so the hook can &quot;take&quot; a portion</a>
 <a name="161"><span class="lineNum">     161 </span>                :            :      *      of the swap output as a fee, modifying what the swapper receives.</a>
 <a name="162"><span class="lineNum">     162 </span>                :            :      */</a>
-<a name="163"><span class="lineNum">     163 </span>                :<span class="lineCov">         40 :     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {</span></a>
-<a name="164"><span class="lineNum">     164 </span>                :<span class="lineCov">         40 :         return Hooks.Permissions({</span></a>
+<a name="163"><span class="lineNum">     163 </span>                :<span class="lineNoCov">          0 :     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {</span></a>
+<a name="164"><span class="lineNum">     164 </span>                :<span class="lineNoCov">          0 :         return Hooks.Permissions({</span></a>
 <a name="165"><span class="lineNum">     165 </span>                :            :             beforeInitialize: false,</a>
 <a name="166"><span class="lineNum">     166 </span>                :            :             afterInitialize: false,</a>
 <a name="167"><span class="lineNum">     167 </span>                :            :             beforeAddLiquidity: false,</a>
@@ -267,18 +267,18 @@
 <a name="196"><span class="lineNum">     196 </span>                :            :      * @return BeforeSwapDelta  Zero delta — we don't modify input amounts.</a>
 <a name="197"><span class="lineNum">     197 </span>                :            :      * @return uint24           Zero — we don't override the LP fee here.</a>
 <a name="198"><span class="lineNum">     198 </span>                :            :      */</a>
-<a name="199"><span class="lineNum">     199 </span>                :<span class="lineCov">        527 :     function _beforeSwap(address sender, PoolKey calldata, SwapParams calldata, bytes calldata)</span></a>
+<a name="199"><span class="lineNum">     199 </span>                :<span class="lineNoCov">          0 :     function _beforeSwap(address sender, PoolKey calldata, SwapParams calldata, bytes calldata)</span></a>
 <a name="200"><span class="lineNum">     200 </span>                :            :         internal</a>
 <a name="201"><span class="lineNum">     201 </span>                :            :         view</a>
 <a name="202"><span class="lineNum">     202 </span>                :            :         override</a>
 <a name="203"><span class="lineNum">     203 </span>                :            :         returns (bytes4, BeforeSwapDelta, uint24)</a>
 <a name="204"><span class="lineNum">     204 </span>                :            :     {</a>
 <a name="205"><span class="lineNum">     205 </span>                :            :         // Only authorized settlers can swap through settlement pools</a>
-<a name="206"><span class="lineNum">     206 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        527 :         if (!authorizedSettlers[sender]) {</span></a>
-<a name="207"><span class="lineNum">     207 </span>                :<span class="lineCov">          1 :             revert Hook__UnauthorizedSettler(sender);</span></a>
+<a name="206"><span class="lineNum">     206 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineNoCov">          0 :         if (!authorizedSettlers[sender]) {</span></a>
+<a name="207"><span class="lineNum">     207 </span>                :<span class="lineNoCov">          0 :             revert Hook__UnauthorizedSettler(sender);</span></a>
 <a name="208"><span class="lineNum">     208 </span>                :            :         }</a>
 <a name="209"><span class="lineNum">     209 </span>                :            : </a>
-<a name="210"><span class="lineNum">     210 </span>                :<span class="lineCov">        526 :         return (</span></a>
+<a name="210"><span class="lineNum">     210 </span>                :<span class="lineNoCov">          0 :         return (</span></a>
 <a name="211"><span class="lineNum">     211 </span>                :            :             BaseHook.beforeSwap.selector,</a>
 <a name="212"><span class="lineNum">     212 </span>                :            :             BeforeSwapDeltaLibrary.ZERO_DELTA,</a>
 <a name="213"><span class="lineNum">     213 </span>                :            :             0 // no LP fee override</a>
@@ -309,7 +309,7 @@
 <a name="238"><span class="lineNum">     238 </span>                :            :      * @return bytes4   The function selector.</a>
 <a name="239"><span class="lineNum">     239 </span>                :            :      * @return int128   The amount taken from output (fee).</a>
 <a name="240"><span class="lineNum">     240 </span>                :            :      */</a>
-<a name="241"><span class="lineNum">     241 </span>                :<span class="lineCov">        526 :     function _afterSwap(</span></a>
+<a name="241"><span class="lineNum">     241 </span>                :<span class="lineNoCov">          0 :     function _afterSwap(</span></a>
 <a name="242"><span class="lineNum">     242 </span>                :            :         address sender,</a>
 <a name="243"><span class="lineNum">     243 </span>                :            :         PoolKey calldata key,</a>
 <a name="244"><span class="lineNum">     244 </span>                :            :         SwapParams calldata params,</a>
@@ -319,17 +319,17 @@
 <a name="248"><span class="lineNum">     248 </span>                :            :         // ─── Step 1: Decode batch context from hookData ─────────────</a>
 <a name="249"><span class="lineNum">     249 </span>                :            : </a>
 <a name="250"><span class="lineNum">     250 </span>                :            :         // If no hookData provided, no fee (shouldn't happen with authorized settlers)</a>
-<a name="251"><span class="lineNum">     251 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        526 :         if (hookData.length == 0) {</span></a>
-<a name="252"><span class="lineNum">     252 </span>                :<span class="lineCov">          1 :             return (BaseHook.afterSwap.selector, 0);</span></a>
+<a name="251"><span class="lineNum">     251 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineNoCov">          0 :         if (hookData.length == 0) {</span></a>
+<a name="252"><span class="lineNum">     252 </span>                :<span class="lineNoCov">          0 :             return (BaseHook.afterSwap.selector, 0);</span></a>
 <a name="253"><span class="lineNum">     253 </span>                :            :         }</a>
 <a name="254"><span class="lineNum">     254 </span>                :            : </a>
-<a name="255"><span class="lineNum">     255 </span>                :<span class="lineCov">        525 :         (uint256 batchSize,) = abi.decode(hookData, (uint256, bytes32));</span></a>
+<a name="255"><span class="lineNum">     255 </span>                :<span class="lineNoCov">          0 :         (uint256 batchSize,) = abi.decode(hookData, (uint256, bytes32));</span></a>
 <a name="256"><span class="lineNum">     256 </span>                :            : </a>
-<a name="257"><span class="lineNum">     257 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        525 :         if (batchSize == 0) revert Hook__InvalidBatchSize();</span></a>
+<a name="257"><span class="lineNum">     257 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineNoCov">          0 :         if (batchSize == 0) revert Hook__InvalidBatchSize();</span></a>
 <a name="258"><span class="lineNum">     258 </span>                :            : </a>
 <a name="259"><span class="lineNum">     259 </span>                :            :         // ─── Step 2: Calculate dynamic fee ──────────────────────────</a>
 <a name="260"><span class="lineNum">     260 </span>                :            : </a>
-<a name="261"><span class="lineNum">     261 </span>                :<span class="lineCov">        524 :         uint256 feeBps = calculateDynamicFee(batchSize);</span></a>
+<a name="261"><span class="lineNum">     261 </span>                :<span class="lineNoCov">          0 :         uint256 feeBps = calculateDynamicFee(batchSize);</span></a>
 <a name="262"><span class="lineNum">     262 </span>                :            : </a>
 <a name="263"><span class="lineNum">     263 </span>                :            :         // ─── Step 3: Determine output amount and take fee ───────────</a>
 <a name="264"><span class="lineNum">     264 </span>                :            : </a>
@@ -337,55 +337,55 @@
 <a name="266"><span class="lineNum">     266 </span>                :            :         // With afterSwapReturnDelta enabled, V4 may pass the output as</a>
 <a name="267"><span class="lineNum">     267 </span>                :            :         // a positive int128 (tokens owed to swapper) rather than negative.</a>
 <a name="268"><span class="lineNum">     268 </span>                :            :         // We handle both conventions.</a>
-<a name="269"><span class="lineNum">     269 </span>                :<span class="lineCov">        524 :         int128 rawDelta;</span></a>
-<a name="270"><span class="lineNum">     270 </span>        [<span class="branchCov" title="Branch 0 was taken 523 times"> + </span><span class="branchCov" title="Branch 1 was taken 1 time"> + </span>]:<span class="lineCov">        523 :         if (params.zeroForOne) {</span></a>
-<a name="271"><span class="lineNum">     271 </span>                :<span class="lineCov">        523 :             rawDelta = delta.amount1();</span></a>
+<a name="269"><span class="lineNum">     269 </span>                :<span class="lineNoCov">          0 :         int128 rawDelta;</span></a>
+<a name="270"><span class="lineNum">     270 </span>        [<span class="branchCov" title="Branch 0 was taken 532 times"> + </span><span class="branchCov" title="Branch 1 was taken 2 times"> + </span>]:<span class="lineNoCov">          0 :         if (params.zeroForOne) {</span></a>
+<a name="271"><span class="lineNum">     271 </span>                :<span class="lineNoCov">          0 :             rawDelta = delta.amount1();</span></a>
 <a name="272"><span class="lineNum">     272 </span>                :            :         } else {</a>
-<a name="273"><span class="lineNum">     273 </span>                :<span class="lineCov">          1 :             rawDelta = delta.amount0();</span></a>
+<a name="273"><span class="lineNum">     273 </span>                :<span class="lineNoCov">          0 :             rawDelta = delta.amount0();</span></a>
 <a name="274"><span class="lineNum">     274 </span>                :            :         }</a>
 <a name="275"><span class="lineNum">     275 </span>                :            : </a>
 <a name="276"><span class="lineNum">     276 </span>                :            :         // Get absolute output value regardless of sign convention</a>
-<a name="277"><span class="lineNum">     277 </span>                :<span class="lineCov">        524 :         uint256 absOutput;</span></a>
-<a name="278"><span class="lineNum">     278 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchCov" title="Branch 1 was taken 524 times"> + </span>]:<span class="lineCov">        524 :         if (rawDelta &lt; 0) {</span></a>
+<a name="277"><span class="lineNum">     277 </span>                :<span class="lineNoCov">          0 :         uint256 absOutput;</span></a>
+<a name="278"><span class="lineNum">     278 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchCov" title="Branch 1 was taken 534 times"> + </span>]:<span class="lineNoCov">          0 :         if (rawDelta &lt; 0) {</span></a>
 <a name="279"><span class="lineNum">     279 </span>                :<span class="lineNoCov">          0 :             absOutput = uint256(uint128(-rawDelta));</span></a>
-<a name="280"><span class="lineNum">     280 </span>           [<span class="branchCov" title="Branch 0 was taken 523 times"> + </span>]:<span class="lineCov">        524 :         } else if (rawDelta &gt; 0) {</span></a>
-<a name="281"><span class="lineNum">     281 </span>                :<span class="lineCov">        523 :             absOutput = uint256(uint128(rawDelta));</span></a>
+<a name="280"><span class="lineNum">     280 </span>           [<span class="branchCov" title="Branch 0 was taken 533 times"> + </span>]:<span class="lineNoCov">          0 :         } else if (rawDelta &gt; 0) {</span></a>
+<a name="281"><span class="lineNum">     281 </span>                :<span class="lineNoCov">          0 :             absOutput = uint256(uint128(rawDelta));</span></a>
 <a name="282"><span class="lineNum">     282 </span>                :            :         }</a>
 <a name="283"><span class="lineNum">     283 </span>                :            :         // if rawDelta == 0, absOutput stays 0</a>
 <a name="284"><span class="lineNum">     284 </span>                :            : </a>
 <a name="285"><span class="lineNum">     285 </span>                :            :         // Only take fee if there's actual output</a>
-<a name="286"><span class="lineNum">     286 </span>                :<span class="lineCov">        524 :         int128 feeAmount = int128(0);</span></a>
-<a name="287"><span class="lineNum">     287 </span>           [<span class="branchCov" title="Branch 0 was taken 522 times"> + </span>]:<span class="lineCov">        524 :         if (absOutput &gt; 0 &amp;&amp; feeBps &gt; 0) {</span></a>
-<a name="288"><span class="lineNum">     288 </span>                :<span class="lineCov">        522 :             uint256 fee = (absOutput * feeBps) / BPS_DENOMINATOR;</span></a>
+<a name="286"><span class="lineNum">     286 </span>                :<span class="lineNoCov">          0 :         int128 feeAmount = int128(0);</span></a>
+<a name="287"><span class="lineNum">     287 </span>           [<span class="branchCov" title="Branch 0 was taken 532 times"> + </span>]:<span class="lineNoCov">          0 :         if (absOutput &gt; 0 &amp;&amp; feeBps &gt; 0) {</span></a>
+<a name="288"><span class="lineNum">     288 </span>                :<span class="lineNoCov">          0 :             uint256 fee = (absOutput * feeBps) / BPS_DENOMINATOR;</span></a>
 <a name="289"><span class="lineNum">     289 </span>                :            : </a>
-<a name="290"><span class="lineNum">     290 </span>           [<span class="branchCov" title="Branch 0 was taken 522 times"> + </span>]:<span class="lineCov">        522 :             if (fee &gt; 0) {</span></a>
-<a name="291"><span class="lineNum">     291 </span>                :<span class="lineCov">        522 :                 feeAmount = int128(int256(fee));</span></a>
+<a name="290"><span class="lineNum">     290 </span>           [<span class="branchCov" title="Branch 0 was taken 532 times"> + </span>]:<span class="lineNoCov">          0 :             if (fee &gt; 0) {</span></a>
+<a name="291"><span class="lineNum">     291 </span>                :<span class="lineNoCov">          0 :                 feeAmount = int128(int256(fee));</span></a>
 <a name="292"><span class="lineNum">     292 </span>                :            : </a>
-<a name="293"><span class="lineNum">     293 </span>                :<span class="lineCov">        522 :                 Currency outputCurrency = params.zeroForOne ? key.currency1 : key.currency0;</span></a>
-<a name="294"><span class="lineNum">     294 </span>                :<span class="lineCov">        522 :                 poolManager.mint(feeRecipient, CurrencyLibrary.toId(outputCurrency), fee);</span></a>
+<a name="293"><span class="lineNum">     293 </span>                :<span class="lineNoCov">          0 :                 Currency outputCurrency = params.zeroForOne ? key.currency1 : key.currency0;</span></a>
+<a name="294"><span class="lineNum">     294 </span>                :<span class="lineNoCov">          0 :                 poolManager.mint(feeRecipient, CurrencyLibrary.toId(outputCurrency), fee);</span></a>
 <a name="295"><span class="lineNum">     295 </span>                :            :             }</a>
 <a name="296"><span class="lineNum">     296 </span>                :            :         }</a>
 <a name="297"><span class="lineNum">     297 </span>                :            : </a>
 <a name="298"><span class="lineNum">     298 </span>                :            :         // ─── Step 4: Update analytics ───────────────────────────────</a>
 <a name="299"><span class="lineNum">     299 </span>                :            : </a>
-<a name="300"><span class="lineNum">     300 </span>                :<span class="lineCov">        524 :         PoolId poolId = key.toId();</span></a>
-<a name="301"><span class="lineNum">     301 </span>                :<span class="lineCov">        524 :         totalSettlements[poolId] += batchSize;</span></a>
-<a name="302"><span class="lineNum">     302 </span>           [<span class="branchCov" title="Branch 0 was taken 522 times"> + </span>]:<span class="lineCov">        524 :         if (feeAmount &gt; 0) {</span></a>
-<a name="303"><span class="lineNum">     303 </span>                :<span class="lineCov">        522 :             totalFeesCollected[poolId] += uint256(uint128(feeAmount));</span></a>
+<a name="300"><span class="lineNum">     300 </span>                :<span class="lineNoCov">          0 :         PoolId poolId = key.toId();</span></a>
+<a name="301"><span class="lineNum">     301 </span>                :<span class="lineNoCov">          0 :         totalSettlements[poolId] += batchSize;</span></a>
+<a name="302"><span class="lineNum">     302 </span>           [<span class="branchCov" title="Branch 0 was taken 532 times"> + </span>]:<span class="lineNoCov">          0 :         if (feeAmount &gt; 0) {</span></a>
+<a name="303"><span class="lineNum">     303 </span>                :<span class="lineNoCov">          0 :             totalFeesCollected[poolId] += uint256(uint128(feeAmount));</span></a>
 <a name="304"><span class="lineNum">     304 </span>                :            :         }</a>
-<a name="305"><span class="lineNum">     305 </span>           [<span class="branchCov" title="Branch 0 was taken 523 times"> + </span>]:<span class="lineCov">        524 :         if (absOutput &gt; 0) {</span></a>
-<a name="306"><span class="lineNum">     306 </span>                :<span class="lineCov">        523 :             totalVolumeSwapped[poolId] += absOutput;</span></a>
+<a name="305"><span class="lineNum">     305 </span>           [<span class="branchCov" title="Branch 0 was taken 533 times"> + </span>]:<span class="lineNoCov">          0 :         if (absOutput &gt; 0) {</span></a>
+<a name="306"><span class="lineNum">     306 </span>                :<span class="lineNoCov">          0 :             totalVolumeSwapped[poolId] += absOutput;</span></a>
 <a name="307"><span class="lineNum">     307 </span>                :            :         }</a>
 <a name="308"><span class="lineNum">     308 </span>                :            : </a>
 <a name="309"><span class="lineNum">     309 </span>                :            :         // ─── Step 5: Emit events ────────────────────────────────────</a>
 <a name="310"><span class="lineNum">     310 </span>                :            : </a>
-<a name="311"><span class="lineNum">     311 </span>                :<span class="lineCov">        524 :         emit SettlementSwapExecuted(poolId, sender, batchSize, feeBps, rawDelta);</span></a>
+<a name="311"><span class="lineNum">     311 </span>                :<span class="lineNoCov">          0 :         emit SettlementSwapExecuted(poolId, sender, batchSize, feeBps, rawDelta);</span></a>
 <a name="312"><span class="lineNum">     312 </span>                :            : </a>
-<a name="313"><span class="lineNum">     313 </span>           [<span class="branchCov" title="Branch 0 was taken 522 times"> + </span>]:<span class="lineCov">        524 :         if (feeAmount &gt; 0) {</span></a>
-<a name="314"><span class="lineNum">     314 </span>                :<span class="lineCov">        522 :             emit SettlementFeeCollected(poolId, feeRecipient, uint256(uint128(feeAmount)), batchSize, feeBps);</span></a>
+<a name="313"><span class="lineNum">     313 </span>           [<span class="branchCov" title="Branch 0 was taken 532 times"> + </span>]:<span class="lineNoCov">          0 :         if (feeAmount &gt; 0) {</span></a>
+<a name="314"><span class="lineNum">     314 </span>                :<span class="lineNoCov">          0 :             emit SettlementFeeCollected(poolId, feeRecipient, uint256(uint128(feeAmount)), batchSize, feeBps);</span></a>
 <a name="315"><span class="lineNum">     315 </span>                :            :         }</a>
 <a name="316"><span class="lineNum">     316 </span>                :            : </a>
-<a name="317"><span class="lineNum">     317 </span>                :<span class="lineCov">        524 :         return (BaseHook.afterSwap.selector, feeAmount);</span></a>
+<a name="317"><span class="lineNum">     317 </span>                :<span class="lineNoCov">          0 :         return (BaseHook.afterSwap.selector, feeAmount);</span></a>
 <a name="318"><span class="lineNum">     318 </span>                :            :     }</a>
 <a name="319"><span class="lineNum">     319 </span>                :            : </a>
 <a name="320"><span class="lineNum">     320 </span>                :            :     // ─── Dynamic Fee Calculation ────────────────────────────────────────</a>
@@ -410,21 +410,21 @@
 <a name="339"><span class="lineNum">     339 </span>                :            :      */</a>
 <a name="340"><span class="lineNum">     340 </span>                :<span class="lineNoCov">          0 :     function calculateDynamicFee(uint256 batchSize) public view returns (uint256 feeBps) {</span></a>
 <a name="341"><span class="lineNum">     341 </span>                :            :         // Edge case: if baseFee is 0, no fee regardless of batch size</a>
-<a name="342"><span class="lineNum">     342 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">       6419 :         if (baseFee == 0) return 0;</span></a>
+<a name="342"><span class="lineNum">     342 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineNoCov">          0 :         if (baseFee == 0) return 0;</span></a>
 <a name="343"><span class="lineNum">     343 </span>                :            : </a>
 <a name="344"><span class="lineNum">     344 </span>                :            :         // Decay amount = (batchSize - 1) * decayRate</a>
 <a name="345"><span class="lineNum">     345 </span>                :            :         // The -1 means a single settlement pays full baseFee</a>
-<a name="346"><span class="lineNum">     346 </span>                :<span class="lineCov">       6418 :         uint256 decay = (batchSize - 1) * decayRate;</span></a>
+<a name="346"><span class="lineNum">     346 </span>                :<span class="lineNoCov">          0 :         uint256 decay = (batchSize - 1) * decayRate;</span></a>
 <a name="347"><span class="lineNum">     347 </span>                :            : </a>
 <a name="348"><span class="lineNum">     348 </span>                :            :         // Avoid underflow: if decay exceeds baseFee, clamp to minFee</a>
-<a name="349"><span class="lineNum">     349 </span>           [<span class="branchCov" title="Branch 0 was taken 4673 times"> + </span>]:<span class="lineCov">       6417 :         if (decay &gt;= baseFee) {</span></a>
-<a name="350"><span class="lineNum">     350 </span>                :<span class="lineCov">       4673 :             return minFee;</span></a>
+<a name="349"><span class="lineNum">     349 </span>           [<span class="branchCov" title="Branch 0 was taken 4590 times"> + </span>]:<span class="lineNoCov">          0 :         if (decay &gt;= baseFee) {</span></a>
+<a name="350"><span class="lineNum">     350 </span>                :<span class="lineNoCov">          0 :             return minFee;</span></a>
 <a name="351"><span class="lineNum">     351 </span>                :            :         }</a>
 <a name="352"><span class="lineNum">     352 </span>                :            : </a>
-<a name="353"><span class="lineNum">     353 </span>                :<span class="lineCov">       1744 :         uint256 calculatedFee = baseFee - decay;</span></a>
+<a name="353"><span class="lineNum">     353 </span>                :<span class="lineNoCov">          0 :         uint256 calculatedFee = baseFee - decay;</span></a>
 <a name="354"><span class="lineNum">     354 </span>                :            : </a>
 <a name="355"><span class="lineNum">     355 </span>                :            :         // Clamp to minimum</a>
-<a name="356"><span class="lineNum">     356 </span>                :<span class="lineCov">       1744 :         return calculatedFee &lt; minFee ? minFee : calculatedFee;</span></a>
+<a name="356"><span class="lineNum">     356 </span>                :<span class="lineNoCov">          0 :         return calculatedFee &lt; minFee ? minFee : calculatedFee;</span></a>
 <a name="357"><span class="lineNum">     357 </span>                :            :     }</a>
 <a name="358"><span class="lineNum">     358 </span>                :            : </a>
 <a name="359"><span class="lineNum">     359 </span>                :            :     // ─── Admin Functions ────────────────────────────────────────────────</a>
@@ -437,20 +437,20 @@
 <a name="366"><span class="lineNum">     366 </span>                :            :      * @param _decayRate    New decay rate per settlement in bps.</a>
 <a name="367"><span class="lineNum">     367 </span>                :            :      * @param _feeRecipient New fee recipient address.</a>
 <a name="368"><span class="lineNum">     368 </span>                :            :      */</a>
-<a name="369"><span class="lineNum">     369 </span>                :<span class="lineCov">        263 :     function setFeeConfig(uint256 _baseFee, uint256 _minFee, uint256 _decayRate, address _feeRecipient)</span></a>
+<a name="369"><span class="lineNum">     369 </span>                :<span class="lineNoCov">          0 :     function setFeeConfig(uint256 _baseFee, uint256 _minFee, uint256 _decayRate, address _feeRecipient)</span></a>
 <a name="370"><span class="lineNum">     370 </span>                :            :         external</a>
 <a name="371"><span class="lineNum">     371 </span>                :            :         onlyOwner</a>
 <a name="372"><span class="lineNum">     372 </span>                :            :     {</a>
-<a name="373"><span class="lineNum">     373 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        262 :         if (_baseFee &gt; MAX_BASE_FEE) revert Hook__BaseFeeExceedsCap(_baseFee, MAX_BASE_FEE);</span></a>
-<a name="374"><span class="lineNum">     374 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        261 :         if (_minFee &gt; _baseFee) revert Hook__MinFeeExceedsBaseFee(_minFee, _baseFee);</span></a>
-<a name="375"><span class="lineNum">     375 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineCov">        260 :         if (_baseFee &gt; 0 &amp;&amp; _feeRecipient == address(0)) revert Hook__FeeRecipientNotSet();</span></a>
+<a name="373"><span class="lineNum">     373 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineNoCov">          0 :         if (_baseFee &gt; MAX_BASE_FEE) revert Hook__BaseFeeExceedsCap(_baseFee, MAX_BASE_FEE);</span></a>
+<a name="374"><span class="lineNum">     374 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineNoCov">          0 :         if (_minFee &gt; _baseFee) revert Hook__MinFeeExceedsBaseFee(_minFee, _baseFee);</span></a>
+<a name="375"><span class="lineNum">     375 </span>           [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span>]:<span class="lineNoCov">          0 :         if (_baseFee &gt; 0 &amp;&amp; _feeRecipient == address(0)) revert Hook__FeeRecipientNotSet();</span></a>
 <a name="376"><span class="lineNum">     376 </span>                :            : </a>
-<a name="377"><span class="lineNum">     377 </span>                :<span class="lineCov">        259 :         baseFee = _baseFee;</span></a>
-<a name="378"><span class="lineNum">     378 </span>                :<span class="lineCov">        259 :         minFee = _minFee;</span></a>
-<a name="379"><span class="lineNum">     379 </span>                :<span class="lineCov">        259 :         decayRate = _decayRate;</span></a>
-<a name="380"><span class="lineNum">     380 </span>                :<span class="lineCov">        259 :         feeRecipient = _feeRecipient;</span></a>
+<a name="377"><span class="lineNum">     377 </span>                :<span class="lineNoCov">          0 :         baseFee = _baseFee;</span></a>
+<a name="378"><span class="lineNum">     378 </span>                :<span class="lineNoCov">          0 :         minFee = _minFee;</span></a>
+<a name="379"><span class="lineNum">     379 </span>                :<span class="lineNoCov">          0 :         decayRate = _decayRate;</span></a>
+<a name="380"><span class="lineNum">     380 </span>                :<span class="lineNoCov">          0 :         feeRecipient = _feeRecipient;</span></a>
 <a name="381"><span class="lineNum">     381 </span>                :            : </a>
-<a name="382"><span class="lineNum">     382 </span>                :<span class="lineCov">        259 :         emit FeeConfigUpdated(_baseFee, _minFee, _decayRate, _feeRecipient);</span></a>
+<a name="382"><span class="lineNum">     382 </span>                :<span class="lineNoCov">          0 :         emit FeeConfigUpdated(_baseFee, _minFee, _decayRate, _feeRecipient);</span></a>
 <a name="383"><span class="lineNum">     383 </span>                :            :     }</a>
 <a name="384"><span class="lineNum">     384 </span>                :            : </a>
 <a name="385"><span class="lineNum">     385 </span>                :            :     /**</a>
@@ -463,9 +463,9 @@
 <a name="392"><span class="lineNum">     392 </span>                :            :      * @param settler    Address to authorize or revoke.</a>
 <a name="393"><span class="lineNum">     393 </span>                :            :      * @param authorized Whether the address is authorized.</a>
 <a name="394"><span class="lineNum">     394 </span>                :            :      */</a>
-<a name="395"><span class="lineNum">     395 </span>                :<span class="lineCov">         77 :     function setAuthorizedSettler(address settler, bool authorized) external onlyOwner {</span></a>
-<a name="396"><span class="lineNum">     396 </span>                :<span class="lineCov">         76 :         authorizedSettlers[settler] = authorized;</span></a>
-<a name="397"><span class="lineNum">     397 </span>                :<span class="lineCov">         76 :         emit SettlerAuthorizationUpdated(settler, authorized);</span></a>
+<a name="395"><span class="lineNum">     395 </span>                :<span class="lineNoCov">          0 :     function setAuthorizedSettler(address settler, bool authorized) external onlyOwner {</span></a>
+<a name="396"><span class="lineNum">     396 </span>                :<span class="lineNoCov">          0 :         authorizedSettlers[settler] = authorized;</span></a>
+<a name="397"><span class="lineNum">     397 </span>                :<span class="lineNoCov">          0 :         emit SettlerAuthorizationUpdated(settler, authorized);</span></a>
 <a name="398"><span class="lineNum">     398 </span>                :            :     }</a>
 <a name="399"><span class="lineNum">     399 </span>                :            : </a>
 <a name="400"><span class="lineNum">     400 </span>                :            :     // ─── View Functions ─────────────────────────────────────────────────</a>
@@ -478,9 +478,9 @@
 <a name="407"><span class="lineNum">     407 </span>                :            :      * @return feeBps    Fee in basis points.</a>
 <a name="408"><span class="lineNum">     408 </span>                :            :      * @return feePercent100 Fee as a human-readable string denominator (x100 for %).</a>
 <a name="409"><span class="lineNum">     409 </span>                :            :      */</a>
-<a name="410"><span class="lineNum">     410 </span>                :<span class="lineCov">       5895 :     function getExpectedFee(uint256 batchSize) external view returns (uint256 feeBps, uint256 feePercent100) {</span></a>
-<a name="411"><span class="lineNum">     411 </span>                :<span class="lineCov">       5895 :         feeBps = calculateDynamicFee(batchSize);</span></a>
-<a name="412"><span class="lineNum">     412 </span>                :<span class="lineCov">       5894 :         feePercent100 = feeBps; // feeBps / 100 = percent, caller divides</span></a>
+<a name="410"><span class="lineNum">     410 </span>                :<span class="lineNoCov">          0 :     function getExpectedFee(uint256 batchSize) external view returns (uint256 feeBps, uint256 feePercent100) {</span></a>
+<a name="411"><span class="lineNum">     411 </span>                :<span class="lineNoCov">          0 :         feeBps = calculateDynamicFee(batchSize);</span></a>
+<a name="412"><span class="lineNum">     412 </span>                :<span class="lineNoCov">          0 :         feePercent100 = feeBps; // feeBps / 100 = percent, caller divides</span></a>
 <a name="413"><span class="lineNum">     413 </span>                :            :     }</a>
 <a name="414"><span class="lineNum">     414 </span>                :            : </a>
 <a name="415"><span class="lineNum">     415 </span>                :            :     /**</a>
@@ -491,8 +491,8 @@
 <a name="420"><span class="lineNum">     420 </span>                :            :      * @return fees         Total fees collected (in output token units).</a>
 <a name="421"><span class="lineNum">     421 </span>                :            :      * @return volume       Total swap volume.</a>
 <a name="422"><span class="lineNum">     422 </span>                :            :      */</a>
-<a name="423"><span class="lineNum">     423 </span>                :<span class="lineCov">       1037 :     function getPoolMetrics(PoolId poolId) external view returns (uint256 settlements, uint256 fees, uint256 volume) {</span></a>
-<a name="424"><span class="lineNum">     424 </span>                :<span class="lineCov">       1037 :         return (totalSettlements[poolId], totalFeesCollected[poolId], totalVolumeSwapped[poolId]);</span></a>
+<a name="423"><span class="lineNum">     423 </span>                :<span class="lineNoCov">          0 :     function getPoolMetrics(PoolId poolId) external view returns (uint256 settlements, uint256 fees, uint256 volume) {</span></a>
+<a name="424"><span class="lineNum">     424 </span>                :<span class="lineNoCov">          0 :         return (totalSettlements[poolId], totalFeesCollected[poolId], totalVolumeSwapped[poolId]);</span></a>
 <a name="425"><span class="lineNum">     425 </span>                :            :     }</a>
 <a name="426"><span class="lineNum">     426 </span>                :            : }</a>
 </pre>
