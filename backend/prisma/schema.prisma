@@ -70,3 +70,48 @@ model MerchantIntent {
   
   @@index([merchant])
 }
+
+
+// ─── CCTPTransfer: Tracks cross-chain USDC transfers via CCTP V2 ─────────────
+
+model CCTPTransfer {
+  id                  String    @id @default(cuid())
+  
+  // CCTP identifiers (compound unique key)
+  nonce               String
+  sourceDomain        Int
+  destinationDomain   Int
+  
+  // Transfer details
+  burnToken           String
+  amount              String
+  depositor           String    // Who burned USDC on the source chain
+  mintRecipient       String    // Our CCTPReceiver address (as bytes32)
+  
+  // Source chain info
+  sourceChain         String    // Human-readable chain name
+  sourceTxHash        String    // Burn transaction hash
+  sourceBlockNumber   Int
+  
+  // Relay state machine
+  // DETECTED → PENDING_ATTESTATION → ATTESTED → MINTING → MINTED → PROCESSING → COMPLETED | FAILED
+  status              String    @default("DETECTED")
+  
+  // Filled during relay
+  messageBytes        String?   // Raw CCTP message bytes (for receiveMessage)
+  attestation         String?   // Circle's signed attestation
+  mintTxHash          String?   // receiveMessage() tx hash on Arc
+  processTxHash       String?   // processPayment() tx hash on Arc
+  error               String?   // Error message if FAILED
+  
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  // Compound unique: a nonce is unique per source domain
+  @@unique([nonce, sourceDomain], name: "nonce_sourceDomain")
+  @@index([status])
+  @@index([sourceTxHash])
+  @@index([depositor])
+  @@index([createdAt])
+}

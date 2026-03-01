@@ -56,6 +56,7 @@ export const STREAMS = {
   CREDITED: 'credited',           // After Yellow credit + DB write
   INTENT_HIT: 'intent-threshold', // When a merchant's intent threshold is reached
   BATCH_READY: 'batch-ready',     // When a batch is ready to execute
+  CCTP_BURNS: 'cctp-burns',       // DepositForBurn events from source chains (CCTP V2)
 } as const;
 
 // ─── Stream Utilities ────────────────────────────────────────────────────────

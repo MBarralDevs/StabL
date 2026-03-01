@@ -26,6 +26,9 @@ import {
   disconnectFromYellow 
 } from './services/yellow.js';
 import { initializeLiFi } from './services/lifi.js';
+import { startCCTPBurnListener, stopCCTPBurnListener } from './listeners/cctpBurnListener.js';
+import { startCCTPRelayer, stopCCTPRelayer } from './services/cctpRelayer.js';
+import { validateCCTPConfig } from './config/cctp.js';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -48,7 +51,9 @@ app.get('/health', (req, res) => {
         paymentProcessor: 'running',
         intentChecker: 'running',
         batchExecutor: 'running',
+        cctpRelayer: process.env.CCTP_RECEIVER_ADDRESS ? 'running' : 'disabled',
       },
+      cctpBurnListener: process.env.CCTP_RECEIVER_ADDRESS ? 'running' : 'disabled',
     },
   });
 });
@@ -151,6 +156,36 @@ try {
   console.error('   ❌ Li.Fi initialization failed:', error.message);
   console.error('   ⚠️  Continuing without Li.Fi (cross-chain routing unavailable)');
 }
+console.log('');
+
+// Initialize CCTP V2 burn listener (monitors source chains)
+console.log('🔥 Starting CCTP V2 burn listener...');
+try {
+  await startCCTPBurnListener();
+  services.push({
+    name: 'CCTP Burn Listener',
+    start: startCCTPBurnListener,
+    stop: stopCCTPBurnListener,
+  });
+  console.log('   ✅ CCTP burn listener active');
+} catch (error: any) {
+  console.error('   ❌ CCTP burn listener failed:', error.message);
+  console.error('   ⚠️  Continuing without CCTP monitoring');
+}
+console.log('');
+
+// Start CCTP relayer consumer (polls attestations, submits receiveMessage)
+console.log('⚙️  Starting CCTP relayer consumer...');
+startCCTPRelayer().catch((error: any) => {
+  console.error('CCTP relayer crashed:', error);
+  // Don't exit — other services still work
+});
+services.push({
+  name: 'CCTP Relayer',
+  start: startCCTPRelayer,
+  stop: stopCCTPRelayer,
+});
+console.log('   ✅ CCTP relayer active');
 console.log('');
 
   // Start Arc event listener
