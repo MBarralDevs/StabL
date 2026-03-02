@@ -21,21 +21,25 @@ model Payment {
   blockNumber     Int?
   transactionHash String?
   
-  yellowCredited  Boolean  @default(false)
-  yellowCreditedAt DateTime?
+  // Payment origin tracking
+  source          String   @default("ARC")  // "ARC" (local) or "CCTP" (cross-chain)
+  sourceChain     String   @default("Arc")  // Human-readable chain name
+  sourceTxHash    String?                    // Original tx on source chain (for CCTP)
   
+  // Settlement tracking
   settled         Boolean  @default(false)
   settlementTxHash String?
   settledAt       DateTime?
   batchId         String?
-  settlementAmount String?   // ← NEW: net amount after fee
-  settlementFee    String?   // ← NEW: fee deducted
+  settlementAmount String?
+  settlementFee    String?
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
   @@index([merchant])
   @@index([settled])
+  @@index([source])
   @@index([createdAt])
 }
 
