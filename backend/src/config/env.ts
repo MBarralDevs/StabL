@@ -24,7 +24,6 @@ const REQUIRED_VARS = [
   'BATCH_SETTLER_ADDRESS',
   'REDIS_URL',
   'DATABASE_URL',
-  'LIFI_INTEGRATOR',
 ] as const;
 
 // ─── Validation ──────────────────────────────────────────────────────────────
@@ -61,24 +60,26 @@ export function validateEnv(): void {
  * We validate at startup, so we can safely use non-null assertions here.
  */
 export const env = {
-  // Arc Testnet
+  // Arc Testnet (required)
   ARC_RPC_URL: process.env.ARC_RPC_URL!,
   ARC_WSS_URL: process.env.ARC_WSS_URL!,
   DEPLOYER_PRIVATE_KEY: process.env.DEPLOYER_PRIVATE_KEY!,
 
-  // Contract Addresses
+  // Contract Addresses (required)
   PAYMENT_POOL_ADDRESS: process.env.PAYMENT_POOL_ADDRESS!,
   INTENT_VAULT_ADDRESS: process.env.INTENT_VAULT_ADDRESS!,
   BATCH_SETTLER_ADDRESS: process.env.BATCH_SETTLER_ADDRESS!,
 
-  // Infrastructure
+  // Infrastructure (required)
   REDIS_URL: process.env.REDIS_URL!,
   DATABASE_URL: process.env.DATABASE_URL!,
 
-  // Li.Fi
-  LIFI_INTEGRATOR: process.env.LIFI_INTEGRATOR!,
+  // Li.Fi (optional — fallback for non-USDC cross-chain)
+  LIFI_INTEGRATOR: process.env.LIFI_INTEGRATOR || 'StabL-Gateway',
 
-  // Optional: Node environment (defaults to 'development')
+  // CCTP (optional — set to enable cross-chain USDC relaying)
+  CCTP_RECEIVER_ADDRESS: process.env.CCTP_RECEIVER_ADDRESS || '',
+
   NODE_ENV: process.env.NODE_ENV || 'development',
 } as const;
 
