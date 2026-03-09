@@ -37,7 +37,7 @@ const CONSUMER_NAME = `payment-processor-${process.pid}`;
  * 1. Persist to database (audit trail + dedup)
  * 2. Publish to downstream pipeline (intent checking → batching → settlement)
  */
-async function processPayment(paymentData: any): Promise<void> {
+export async function processPayment(paymentData: any): Promise<void> {
   const { merchant, token, amount, paymentId, blockNumber, transactionHash } = paymentData;
 
   console.log(`📦 Processing payment ${paymentId} for merchant ${merchant}`);
