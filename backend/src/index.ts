@@ -104,7 +104,7 @@ async function initialize(): Promise<void> {
     process.exit(1);
   }
 
-  // ─── Step 2: Test Redis connection ───────────────────────────────────────
+  // ─── // Step 2: Connect to Redis ───────────────────────────────────────
 
   console.log('📋 Step 2/5: Connecting to Redis...');
   try {
@@ -120,7 +120,7 @@ async function initialize(): Promise<void> {
     process.exit(1);
   }
 
-  // ─── Step 3: Display contract addresses ──────────────────────────────────
+  // ─── Step 3: Contract configuration ──────────────────────────────────
 
   console.log('📋 Step 4/5: Contract configuration...');
   console.log(`   📍 Chain: Arc Testnet (${5042002})`);
@@ -130,7 +130,7 @@ async function initialize(): Promise<void> {
   console.log(`   📍 BatchSettler: ${env.BATCH_SETTLER_ADDRESS}`);
   console.log('');
 
-  // ─── Step 4: Start services ──────────────────────────────────────────────
+  // ─── Step 4: Initialize optional services (Li.Fi, CCTP config) ──────────────────────────────────────────────
 
   console.log('📋 Step 5/5: Starting services...');
   console.log('');
@@ -149,34 +149,34 @@ if (env.LIFI_INTEGRATOR) {
 }
 
 // Initialize CCTP V2 burn listener (monitors source chains)
-console.log('🔥 Starting CCTP V2 burn listener...');
-try {
-  await startCCTPBurnListener();
-  services.push({
-    name: 'CCTP Burn Listener',
-    start: startCCTPBurnListener,
-    stop: stopCCTPBurnListener,
-  });
-  console.log('   ✅ CCTP burn listener active');
-} catch (error: any) {
-  console.error('   ❌ CCTP burn listener failed:', error.message);
-  console.error('   ⚠️  Continuing without CCTP monitoring');
-}
-console.log('');
+  console.log('🔥 Starting CCTP V2 burn listener...');
+  try {
+    await startCCTPBurnListener();
+    services.push({
+      name: 'CCTP Burn Listener',
+      start: startCCTPBurnListener,
+      stop: stopCCTPBurnListener,
+    });
+    console.log('   ✅ CCTP burn listener active');
+  } catch (error: any) {
+    console.error('   ❌ CCTP burn listener failed:', error.message);
+    console.error('   ⚠️  Continuing without CCTP monitoring');
+  }
+  console.log('');
 
-// Start CCTP relayer consumer (polls attestations, submits receiveMessage)
-console.log('⚙️  Starting CCTP relayer consumer...');
-startCCTPRelayer().catch((error: any) => {
-  console.error('CCTP relayer crashed:', error);
-  // Don't exit — other services still work
-});
-services.push({
-  name: 'CCTP Relayer',
-  start: startCCTPRelayer,
-  stop: stopCCTPRelayer,
-});
-console.log('   ✅ CCTP relayer active');
-console.log('');
+  // Start CCTP relayer consumer (polls attestations, submits receiveMessage)
+  console.log('⚙️  Starting CCTP relayer consumer...');
+  startCCTPRelayer().catch((error: any) => {
+    console.error('CCTP relayer crashed:', error);
+    // Don't exit — other services still work
+  });
+  services.push({
+    name: 'CCTP Relayer',
+    start: startCCTPRelayer,
+    stop: stopCCTPRelayer,
+  });
+  console.log('   ✅ CCTP relayer active');
+  console.log('');
 
   // Start Arc event listener
   console.log('🎧 Starting Arc blockchain listener...');
