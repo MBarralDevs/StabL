@@ -57,8 +57,6 @@ vi.mock('../../services/database.js', () => ({
 // matching the actual implementation exactly. In a real codebase you'd export
 // processPayment for testability, or use dependency injection.
 
-import { prisma } from '../../services/database.js';
-import { publishEvent, STREAMS } from '../../config/redis.js';
 import { processPayment } from '../onPaymentReceived.js';   
 
 // ─── Test Data Factories ─────────────────────────────────────────────────────
