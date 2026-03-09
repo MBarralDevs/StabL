@@ -78,7 +78,7 @@ interface MerchantIntent {
  * 
  * @param creditedData - Payment credited event data
  */
-async function checkIntent(creditedData: any): Promise<void> {
+export async function checkIntent(creditedData: any): Promise<void> {
   const { merchant, token, amount, paymentId, creditedAt } = creditedData;
 
   console.log(`🔍 Checking intent for merchant ${merchant}`);
