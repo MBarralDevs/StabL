@@ -4,10 +4,15 @@
  * StabL Gateway - Main Entry Point
  * 
  * Orchestrates all backend services:
- * - Arc blockchain event listener (WebSocket)
- * - Payment processing consumer (Redis Streams)
- * - Intent checking consumer (Redis Streams)
- * - Batch execution consumer (Redis Streams)
+ * - Arc blockchain event listener (WebSocket) — local payments
+ * - CCTP burn listener (multi-chain) — cross-chain USDC via CCTP V2
+ * - CCTP relayer consumer — polls attestations, submits mints on Arc
+ * - Payment processing consumer — DB persistence + pipeline entry
+ * - Intent checking consumer — evaluates settlement thresholds
+ * - Batch execution consumer — on-chain settlement via BatchSettler + V4 Hook
+ * 
+ * Architecture: CCTP V2 (cross-chain) → PaymentPool → Uniswap V4 Hook (settlement)
+ * Fallback: Li.Fi SDK for non-USDC tokens
  * 
  * Run with: npm run dev
  */
@@ -130,16 +135,18 @@ async function initialize(): Promise<void> {
   console.log('📋 Step 5/5: Starting services...');
   console.log('');
 
-// Initialize Li.Fi SDK
-console.log('🌉 Initializing Li.Fi SDK...');
-try {
-  initializeLiFi();
-  console.log('   ✅ Li.Fi SDK ready');
-} catch (error: any) {
-  console.error('   ❌ Li.Fi initialization failed:', error.message);
-  console.error('   ⚠️  Continuing without Li.Fi (cross-chain routing unavailable)');
+// Initialize Li.Fi SDK (fallback for non-USDC cross-chain routing)
+if (env.LIFI_INTEGRATOR) {
+  console.log('🌉 Initializing Li.Fi SDK (fallback mode)...');
+  try {
+    initializeLiFi();
+    console.log('   ✅ Li.Fi SDK ready (fallback for non-USDC tokens)');
+  } catch (error: any) {
+    console.error('   ❌ Li.Fi init failed:', error.message);
+    console.error('   ⚠️  Non-USDC cross-chain routing unavailable');
+  }
+  console.log('');
 }
-console.log('');
 
 // Initialize CCTP V2 burn listener (monitors source chains)
 console.log('🔥 Starting CCTP V2 burn listener...');

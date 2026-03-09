@@ -6,23 +6,25 @@
  * When a merchant's intent threshold is hit, this consumer executes
  * the on-chain batch settlement via the BatchSettler contract.
  * 
+ * Settlement routing:
+ * - Same-token (USDC→USDC): BatchSettler direct transfer from PaymentPool
+ * - Cross-token on Arc (USDC→EURC): BatchSettler routes through Uniswap V4 Hook
+ * - Cross-chain non-USDC (fallback): Li.Fi SDK for routing quotes
+ * 
  * Flow:
  * 1. Read from "intent-hit" stream
- * 2. Aggregate merchants ready for settlement (could batch multiple)
+ * 2. Verify on-chain balance
  * 3. Call BatchSettler.executeBatch() on-chain
- * 4. Update Yellow Network (mark credits as settled)
- * 5. Update database (mark payments as settled)
- * 6. Acknowledge message
+ * 4. Update database (mark payments as settled)
+ * 5. Acknowledge message
  */
 
 import { ethers } from 'ethers';
-import { 
-  redis, 
-  readStream, 
-  ackMessage, 
-  publishEvent, 
+import {
+  readStream,
+  ackMessage,
   STREAMS,
-  createConsumerGroup 
+  createConsumerGroup,
 } from '../config/redis.js';
 import { env } from '../config/env.js';
 import {
@@ -32,30 +34,22 @@ import {
   BATCH_SETTLER_ADDRESS,
 } from '../config/contracts.js';
 import { prisma } from '../services/database.js';
-import { 
-  getLiFiQuote, 
-  executeLiFiQuote,
-  getUSDCAddress,
-  getDAIAddress 
-} from '../services/lifi.js';
 
 // ─── Contract Setup ──────────────────────────────────────────────────────────
 
 const provider = new ethers.JsonRpcProvider(env.ARC_RPC_URL);
-
-// Need a signer to send transactions
 const wallet = new ethers.Wallet(env.DEPLOYER_PRIVATE_KEY, provider);
 
 const paymentPool = new ethers.Contract(
   PAYMENT_POOL_ADDRESS,
   PaymentPoolABI_Interface,
-  provider // Read-only
+  provider
 );
 
 const batchSettler = new ethers.Contract(
   BATCH_SETTLER_ADDRESS,
   BatchSettlerABI_Interface,
-  wallet // Needs to send transactions
+  wallet
 );
 
 // ─── Consumer Configuration ──────────────────────────────────────────────────
@@ -63,7 +57,7 @@ const batchSettler = new ethers.Contract(
 const CONSUMER_GROUP = 'batch-executors';
 const CONSUMER_NAME = `batch-executor-${process.pid}`;
 
-// ─── Batch Settlement Logic ──────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface SettlementRequest {
   merchant: string;
@@ -76,28 +70,32 @@ interface SettlementRequest {
   timestamp: number;
 }
 
+// ─── Settlement Logic ────────────────────────────────────────────────────────
+
 /**
  * Execute a batch settlement on-chain.
  * 
- * @param request - Settlement request from intent-hit stream
+ * The BatchSettler contract handles routing:
+ * - Same-token: direct PaymentPool.withdraw() to merchant
+ * - Cross-token: routes through Uniswap V4 pool with PaymentSettlementHook
+ *   (dynamic batch-size-dependent fees, atomic swap + settlement)
  */
 async function executeBatchSettlement(request: SettlementRequest): Promise<void> {
   const { merchant, token, balance, intent } = request;
 
   console.log(`⚙️  Executing batch settlement for merchant ${merchant}`);
   console.log(`   Token: ${token}`);
-  console.log(`   Balance: ${ethers.formatUnits(balance, 6)} USDC`);
+  console.log(`   Balance: ${ethers.formatUnits(balance, 6)}`);
   console.log(`   Target token: ${intent.targetToken}`);
 
-  // ─── Step 1: Verify balance on-chain ────────────────────────────────────
+  // ─── Step 1: Verify balance on-chain ─────────────────────────────────────
 
   let actualBalance: bigint;
-  
+
   try {
     actualBalance = await paymentPool.getMerchantBalance(merchant, token);
-    
-    console.log(`   ✅ Verified on-chain balance: ${ethers.formatUnits(actualBalance, 6)} USDC`);
-    
+    console.log(`   ✅ Verified on-chain balance: ${ethers.formatUnits(actualBalance, 6)}`);
+
     if (actualBalance === 0n) {
       console.log(`   ⚠️  Balance is zero, skipping settlement`);
       return;
@@ -107,310 +105,140 @@ async function executeBatchSettlement(request: SettlementRequest): Promise<void>
     throw error;
   }
 
-  // ─── Step 1.5: Calculate expected fee ───────────────────────────────────
+  // ─── Step 2: Calculate expected fee ──────────────────────────────────────
 
-let feeBasisPoints: bigint;
-let feeRecipient: string;
+  let feeBasisPoints: bigint;
 
-try {
-  feeBasisPoints = await batchSettler.feeBasisPoints();
-  feeRecipient = await batchSettler.feeRecipient();
-} catch (error) {
-  console.log(`   ⚠️  Could not read fee config, assuming 0`);
-  feeBasisPoints = 0n;
-  feeRecipient = ethers.ZeroAddress;
-}
-
-const fee = feeBasisPoints > 0n ? (actualBalance * feeBasisPoints) / 10000n : 0n;
-const netAmount = actualBalance - fee;
-
-console.log(`   💰 Settlement breakdown:`);
-console.log(`      Gross: ${ethers.formatUnits(actualBalance, 6)} USDC`);
-if (fee > 0n) {
-  console.log(`      Fee (${Number(feeBasisPoints)}bp): ${ethers.formatUnits(fee, 6)} USDC`);
-  console.log(`      Net to merchant: ${ethers.formatUnits(netAmount, 6)} USDC`);
-}
-
-// ─── Step 2: Prepare batch data ─────────────────────────────────────────
-
-// Create Settlement struct
-const settlements = [{
-  merchant: merchant,
-  token: token,
-  amount: actualBalance,
-  recipient: merchant  // Send to merchant's wallet
-}];
-
-// Generate batch ID (timestamp-based)
-const batchId = ethers.id(`batch-${Date.now()}`);
-const totalGasSaved = 0; // We can estimate this later
-
-console.log(`   📦 Batch prepared:`);
-console.log(`      Batch ID: ${batchId}`);
-console.log(`      Merchants: 1`);
-console.log(`      Total amount: ${ethers.formatUnits(actualBalance, 6)} USDC`);
-
-// ─── Step 2.5: Dry-run validation ───────────────────────────────────────
-
-try {
-  const [valid, errorIndex, reason] = await batchSettler.validateBatch(settlements);
-  if (!valid) {
-    console.error(`   ❌ Batch validation failed at index ${errorIndex}: ${reason}`);
-    return;
+  try {
+    feeBasisPoints = await batchSettler.feeBasisPoints();
+  } catch {
+    console.log(`   ⚠️  Could not read fee config, assuming 0`);
+    feeBasisPoints = 0n;
   }
-  console.log(`   ✅ Batch pre-validated on-chain`);
-} catch (error) {
-  console.error(`   ⚠️  Validation call failed, proceeding anyway:`, error);
-}
 
-// ─── Step 3: Execute batch settlement ───────────────────────────────────
+  const fee = feeBasisPoints > 0n ? (actualBalance * feeBasisPoints) / 10000n : 0n;
+  const netAmount = actualBalance - fee;
 
-let tx: ethers.TransactionResponse;
+  console.log(`   💰 Gross: ${ethers.formatUnits(actualBalance, 6)} | Fee: ${ethers.formatUnits(fee, 6)} | Net: ${ethers.formatUnits(netAmount, 6)}`);
 
-try {
-  console.log(`   📤 Sending executeBatch transaction...`);
-  
-  // Call BatchSettler.executeBatch(batchId, settlements[], totalGasSaved)
-  tx = await batchSettler.executeBatch(batchId, settlements, totalGasSaved);
-    
-    console.log(`   ⏳ Transaction sent: ${tx.hash}`);
-    console.log(`   ⏳ Waiting for confirmation...`);
-    
-    // Wait for transaction to be mined
+  // ─── Step 3: Prepare and execute batch ───────────────────────────────────
+
+  // Determine if this is same-token or cross-token
+  const isCrossToken = intent.targetToken.toLowerCase() !== token.toLowerCase()
+    && intent.targetToken !== ethers.ZeroAddress;
+
+  const settlements = [{
+    merchant,
+    token,
+    amount: actualBalance,
+    recipient: merchant,
+    outputToken: isCrossToken ? intent.targetToken : token,
+  }];
+
+  const batchId = ethers.id(`batch-${merchant}-${Date.now()}`);
+
+  console.log(`   📦 Batch ID: ${batchId.slice(0, 10)}...`);
+  console.log(`   📦 Type: ${isCrossToken ? 'cross-token (V4 Hook)' : 'same-token (direct)'}`);
+
+  // ─── Step 3.5: Dry-run validation ────────────────────────────────────────
+
+  try {
+    const [valid, errorIndex, reason] = await batchSettler.validateBatch(settlements);
+    if (!valid) {
+      console.error(`   ❌ Batch validation failed at index ${errorIndex}: ${reason}`);
+      return;
+    }
+    console.log(`   ✅ Batch pre-validated`);
+  } catch {
+    console.log(`   ⚠️  Validation unavailable, proceeding`);
+  }
+
+  // ─── Step 4: Execute on-chain ────────────────────────────────────────────
+
+  let tx: ethers.TransactionResponse;
+
+  try {
+    console.log(`   📤 Sending executeBatch transaction...`);
+    tx = await batchSettler.executeBatch(batchId, settlements, 0);
+    console.log(`   ⏳ Tx sent: ${tx.hash}`);
+
     const receipt = await tx.wait();
-    
-    if (!receipt) {
-      console.error(`   ❌ Transaction was not mined`);
-      throw new Error('Transaction was not mined');
+
+    if (!receipt || receipt.status === 0) {
+      throw new Error(`Transaction reverted: ${tx.hash}`);
     }
-    
-    if (receipt.status === 1) {
-      console.log(`   ✅ Transaction confirmed!`);
-      console.log(`      Block: ${receipt.blockNumber}`);
-      console.log(`      Gas used: ${receipt.gasUsed.toString()}`);
-    } else {
-      console.error(`   ❌ Transaction failed (status: ${receipt.status})`);
-      throw new Error('Transaction reverted');
-    }
+
+    console.log(`   ✅ Confirmed in block ${receipt.blockNumber} (gas: ${receipt.gasUsed})`);
   } catch (error: any) {
-    console.error(`   ❌ Failed to execute batch:`, error.message);
-    
-    // Parse custom errors from hardened contracts
+    console.error(`   ❌ executeBatch failed: ${error.message}`);
+
+    // Parse custom errors
     if (error.data) {
       try {
         const iface = new ethers.Interface(BatchSettlerABI_Interface);
         const decoded = iface.parseError(error.data);
         if (decoded) {
-          console.error(`      Contract error: ${decoded.name}`);
-          console.error(`      Args:`, decoded.args);
+          console.error(`      Contract error: ${decoded.name}`, decoded.args);
         }
-      } catch {
-        // Fallback to raw reason
-        if (error.reason) {
-          console.error(`      Revert reason: ${error.reason}`);
-        }
-      }
+      } catch {}
     }
-    
+
     throw error;
-}
-
- // ─── Step 3.5: Cross-Chain Routing (if needed) ──────────────────────────
-
-/**
- * If merchant wants to receive in a different token/chain,
- * use Li.Fi to get REAL routing quotes and show what would happen.
- * 
- * For demo: We'll check if merchant wants a different chain
- * and show real Li.Fi routing data.
- */
-
-// Example: Check if merchant wants funds on a different chain
-// In production, this would come from merchant preferences in IntentVault
-const MERCHANT_PREFERENCES: { [merchant: string]: { chain: number; token: string } } = {
-  '0x172b7952b0f711b8b372410e81d51dcba7d4bb02': { 
-    chain: 42161, // Arbitrum
-    token: getUSDCAddress(42161) // USDC on Arbitrum
   }
-};
 
-const merchantPref = MERCHANT_PREFERENCES[merchant.toLowerCase()];
+  // ─── Step 5: Update database ─────────────────────────────────────────────
 
-if (merchantPref) {
-  console.log(`   🌉 Merchant wants different chain/token`);
-  console.log(`      Target: Chain ${merchantPref.chain}`);
-  console.log(`      Fetching REAL Li.Fi quote...`);
-  
   try {
-    // Get REAL quote from Li.Fi API
-    const quote = await getLiFiQuote({
-      fromChainId: 137, // Polygon (example - Arc not supported by Li.Fi yet)
-      toChainId: merchantPref.chain,
-      fromToken: getUSDCAddress(137), // USDC on Polygon
-      toToken: merchantPref.token,
-      fromAmount: actualBalance.toString(),
-      fromAddress: merchant,
+    const result = await prisma.payment.updateMany({
+      where: { merchant, token, settled: false },
+      data: {
+        settled: true,
+        settlementTxHash: tx.hash,
+        settledAt: new Date(),
+        batchId,
+        settlementAmount: netAmount.toString(),
+        settlementFee: fee.toString(),
+      },
     });
-    
-    // Simulate execution based on real quote
-    const lifiResult = await executeLiFiQuote(quote);
-    
-    console.log(`   ✅ Li.Fi routing complete`);
-    console.log(`      Real quote from Li.Fi API`);
-    console.log(`      Bridge: ${lifiResult.bridge}`);
-    console.log(`      Output: ${ethers.formatUnits(lifiResult.outputAmount, 6)} USDC`);
-    console.log(`      Gas cost: $${lifiResult.gasUsed}`);
-    
-  } catch (error: any) {
-    console.error(`   ❌ Li.Fi routing failed:`, error.message);
-    console.log(`   ⚠️  Merchant received original token instead`);
-  }
-} else {
-  console.log(`   ℹ️  Merchant accepting settlement token (no cross-chain routing needed)`);
-}
 
-  // ─── Step 4: Update Yellow Network ──────────────────────────────────────
-
-/**
- * Notify Yellow Network that on-chain settlement is complete.
- * 
- * In production:
- * - Yellow Network's off-chain state is reconciled with on-chain settlement
- * - This closes the liquidity loop (off-chain credit → on-chain settlement)
- * 
- * Demo mode:
- * - This is currently mocked for demonstration
- */
-console.log(`    [MOCK] Updating Yellow Network for merchant ${merchant}`);
-console.log(`    [MOCK] Amount: ${ethers.formatUnits(actualBalance, 6)} USDC`);
-console.log(`    [MOCK] TxHash: ${tx.hash}`);
-
-  try {
-    await mockUpdateYellowSettlement(merchant, actualBalance, tx.hash);
-    console.log(`   ✅ Yellow Network updated`);
+    console.log(`   ✅ ${result.count} payment(s) marked as settled`);
   } catch (error) {
-    console.error(`   ❌ Failed to update Yellow:`, error);
-    // Don't throw - settlement succeeded, Yellow update can be retried
+    console.error(`   ❌ DB update failed (settlement succeeded on-chain):`, error);
+    // Don't throw — on-chain settlement is done, DB can be retried
   }
 
-  // ─── Step 5: Update database ────────────────────────────────────────────
-
-  try {
-    await updateDatabaseSettlement(merchant, token, actualBalance, netAmount, fee, tx.hash, batchId);
-    console.log(`   ✅ Database updated`);
-  } catch (error) {
-    console.error(`   ❌ Failed to update database:`, error);
-    // Don't throw - settlement succeeded, DB update can be retried
-  }
-
-  console.log(`✅ Batch settlement complete for merchant ${merchant}`);
-}
-
-// ─── Mock Functions ──────────────────────────────────────────────────────────
-
-/**
- * Mock function to update Yellow Network after settlement.
- * 
- * TODO: Replace with actual Yellow SDK call:
- * 
- * await yellowClient.markAsSettled({
- *   merchantId: merchant,
- *   amount: amount,
- *   txHash: txHash,
- *   chainId: 5042002, // Arc testnet
- * });
- */
-async function mockUpdateYellowSettlement(
-  merchant: string,
-  amount: bigint,
-  txHash: string
-): Promise<void> {
-  console.log(`    [MOCK] Updating Yellow Network for merchant ${merchant}`);
-  console.log(`    [MOCK] Amount: ${ethers.formatUnits(amount, 6)} USDC`);
-  console.log(`    [MOCK] TxHash: ${txHash}`);
-  
-  // Simulate API call delay
-  await new Promise(resolve => setTimeout(resolve, 100));
-}
-
-/**
- * Update database after settlement using Prisma.
- */
-async function updateDatabaseSettlement(
-  merchant: string,
-  token: string,
-  grossAmount: bigint,
-  netAmount: bigint,
-  fee: bigint,
-  txHash: string,
-  batchId: string
-): Promise<void> {
-  const result = await prisma.payment.updateMany({
-    where: {
-      merchant,
-      token,
-      settled: false,
-    },
-    data: {
-      settled: true,
-      settlementTxHash: txHash,
-      settledAt: new Date(),
-      batchId,
-      settlementAmount: netAmount.toString(),
-      settlementFee: fee.toString(),
-    },
-  });
-  
-  console.log(`   ✅ Database updated: ${result.count} payment(s) marked as settled`);
-  console.log(`      Gross: ${ethers.formatUnits(grossAmount, 6)} | Net: ${ethers.formatUnits(netAmount, 6)} | Fee: ${ethers.formatUnits(fee, 6)}`);
+  console.log(`✅ Settlement complete for ${merchant}`);
 }
 
 // ─── Consumer Loop ───────────────────────────────────────────────────────────
 
-/**
- * Main consumer loop.
- * 
- * Reads from the "intent-hit" stream and executes batch settlements.
- */
 export async function startBatchExecutor(): Promise<void> {
   console.log('🚀 Starting batch executor consumer...');
   console.log(`   Consumer name: ${CONSUMER_NAME}`);
   console.log(`   Consumer group: ${CONSUMER_GROUP}`);
   console.log(`   Signer address: ${wallet.address}`);
 
-  // Create consumer group if it doesn't exist
   await createConsumerGroup(STREAMS.INTENT_HIT, CONSUMER_GROUP);
 
-  // Start consuming
-  while (true) {
+  while (!shouldStop) {
     try {
-      // Read messages from the "intent-hit" stream
       const messages = await readStream(
         STREAMS.INTENT_HIT,
         CONSUMER_GROUP,
         CONSUMER_NAME,
-        '>', // Only new messages
-        5    // Smaller batch size (settlements are slower)
+        '>',
+        5
       );
 
-      // Process each message
       for (const message of messages) {
         try {
-          // Execute the batch settlement
           await executeBatchSettlement(message.data);
-
-          // Acknowledge the message
           await ackMessage(STREAMS.INTENT_HIT, CONSUMER_GROUP, message.id);
         } catch (error) {
           console.error(`Failed to process settlement ${message.id}:`, error);
-          // Don't ack - message stays in pending for retry
-          
-          // Add exponential backoff to avoid hammering the blockchain
           await new Promise(resolve => setTimeout(resolve, 5000));
         }
       }
-
-      // readStream blocks for up to 5 seconds if no messages
     } catch (error) {
       console.error('Error in consumer loop:', error);
       await new Promise(resolve => setTimeout(resolve, 5000));
@@ -420,10 +248,9 @@ export async function startBatchExecutor(): Promise<void> {
 
 // ─── Graceful Shutdown ───────────────────────────────────────────────────────
 
+let shouldStop = false;
+
 export async function stopBatchExecutor(): Promise<void> {
   console.log('🛑 Stopping batch executor...');
-  // In production, wait for current transactions to complete
+  shouldStop = true;
 }
-
-process.on('SIGTERM', stopBatchExecutor);
-process.on('SIGINT', stopBatchExecutor);
