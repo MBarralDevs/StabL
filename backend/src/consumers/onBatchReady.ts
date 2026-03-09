@@ -80,7 +80,7 @@ interface SettlementRequest {
  * - Cross-token: routes through Uniswap V4 pool with PaymentSettlementHook
  *   (dynamic batch-size-dependent fees, atomic swap + settlement)
  */
-async function executeBatchSettlement(request: SettlementRequest): Promise<void> {
+export async function executeBatchSettlement(request: SettlementRequest): Promise<void> {
   const { merchant, token, balance, intent } = request;
 
   console.log(`⚙️  Executing batch settlement for merchant ${merchant}`);
