@@ -1,23 +1,44 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.30;
 
-import {Script} from "forge-std/Script.sol";
-import {console} from "forge-std/console.sol";
+import {Script, console} from "forge-std/Script.sol";
+import {Test} from "forge-std/Test.sol";
 import {PaymentPool} from "../src/PaymentPool.sol";
 import {IntentVault} from "../src/IntentVault.sol";
-import {BatchSettler} from "../src/BatchSettler.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract TestPaymentFlow is Script {
-    // Contract addresses (from your .env)
-    PaymentPool paymentPool = PaymentPool(0x5a100C9c5B7586cf014ACd65A7EEd592589bc3c4);
-    IntentVault intentVault = IntentVault(0xCb3016AaeAF3C956960134aF241468701D68E1C4);
-    BatchSettler batchSettler = BatchSettler(0x33A7aE97Cf4ee8747Fde9B13e096A86500F4C6E7);
-
+/**
+ * @title TestPaymentFlow
+ * @notice Sends a test payment through the full StabL pipeline.
+ *
+ * @dev Works on both Anvil (local fork) and Arc testnet.
+ *      On Anvil: auto-funds the account with USDC via deal()
+ *      On testnet: requires pre-funded account (use Arc faucet)
+ *
+ * @dev Usage (Anvil):
+ *      forge script script/TestPaymentFlow.s.sol:TestPaymentFlow \
+ *          --rpc-url http://localhost:8545 \
+ *          --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *          --broadcast -vvvv
+ *
+ * @dev Usage (Arc testnet):
+ *      forge script script/TestPaymentFlow.s.sol:TestPaymentFlow \
+ *          --rpc-url $ARC_RPC_URL \
+ *          --private-key $DEPLOYER_PRIVATE_KEY \
+ *          --broadcast -vvvv
+ */
+contract TestPaymentFlow is Script, Test {
     // Arc testnet USDC
-    IERC20 usdc = IERC20(0x4c20Ca8BF703fe85447954Af3EF0E3eCf16dEdb5);
+    IERC20 constant usdc = IERC20(0x4c20Ca8BF703fe85447954Af3EF0E3eCf16dEdb5);
 
     function run() external {
+        // ─── Load addresses from environment ─────────────────────────────
+        address poolAddr = vm.envAddress("PAYMENT_POOL_ADDRESS");
+        address vaultAddr = vm.envAddress("INTENT_VAULT_ADDRESS");
+
+        PaymentPool paymentPool = PaymentPool(poolAddr);
+        IntentVault intentVault = IntentVault(vaultAddr);
+
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
 
@@ -25,110 +46,101 @@ contract TestPaymentFlow is Script {
         console.log("StabL Gateway - Payment Flow Test");
         console.log("=================================================");
         console.log("");
+        console.log("Deployer:", deployer);
+        console.log("PaymentPool:", poolAddr);
+        console.log("IntentVault:", vaultAddr);
+        console.log("");
 
-        vm.startBroadcast(deployerPrivateKey);
+        // ─── Step 0: Fund account if on Anvil ────────────────────────────
+        // Anvil's default RPC runs on localhost:8545 with chainId 5042002 (forked).
+        // We detect Anvil by checking if deployer is the well-known Anvil account #0.
+        // On real testnet, this block is skipped entirely.
 
-        // ─── Step 1: Check USDC balance ─────────────────────────────────
+        bool isAnvil = deployer == 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+
+        if (isAnvil) {
+            console.log("[Anvil] Detected local fork : funding account...");
+            deal(address(usdc), deployer, 10_000e6); // 10,000 USDC
+            vm.deal(deployer, 100 ether);
+            console.log("[Anvil] Funded: 10,000 USDC + 100 ETH");
+            console.log("");
+        }
+
+        // ─── Step 1: Check USDC balance ──────────────────────────────────
 
         uint256 balance = usdc.balanceOf(deployer);
         console.log("Step 1: Check USDC balance");
-        console.log("  Your address:", deployer);
         console.log("  USDC balance:", balance / 1e6, "USDC");
-        console.log("");
 
         if (balance < 10e6) {
-            console.log("ERROR: Insufficient USDC balance");
-            console.log("Please get testnet USDC from Arc faucet");
-            console.log("Then run this script again");
-            vm.stopBroadcast();
+            console.log("  ERROR: Insufficient USDC.");
+            if (!isAnvil) {
+                console.log("  Get testnet USDC from the Arc faucet.");
+            }
             return;
         }
-
-        // ─── Step 2: Set merchant intent (IMMEDIATE) ────────────────────
-
-        console.log("Step 2: Setting merchant intent");
-        console.log("  Merchant:", deployer);
-        console.log("  Intent: IMMEDIATE settlement");
         console.log("");
 
-        // Check if intent already exists
+        vm.startBroadcast(deployerPrivateKey);
+
+        // ─── Step 2: Set merchant intent (IMMEDIATE) ─────────────────────
+
+        console.log("Step 2: Setting merchant intent");
+
         IntentVault.MerchantIntent memory intent = intentVault.getIntent(deployer);
 
         if (intent.exists) {
-            console.log("  Intent already set:");
             string memory speedStr = intent.speed == IntentVault.SettlementSpeed.IMMEDIATE
                 ? "IMMEDIATE"
                 : intent.speed == IntentVault.SettlementSpeed.STANDARD ? "STANDARD" : "DEFERRED";
-            console.log("    Speed:", speedStr);
+            console.log("  Intent already set:", speedStr);
         } else {
-            // Set IMMEDIATE intent
-            intentVault.setIntent(
-                IntentVault.SettlementSpeed.IMMEDIATE,
-                0, // minBatchAmount (0 for IMMEDIATE)
-                0, // maxWaitTimeSeconds (0 for IMMEDIATE)
-                address(usdc) // targetToken
-            );
-            console.log("  Intent set successfully!");
+            intentVault.setIntent(IntentVault.SettlementSpeed.IMMEDIATE, 0, 0, address(usdc));
+            console.log("  Intent set: IMMEDIATE");
         }
         console.log("");
 
-        // ─── Step 3: Approve PaymentPool to spend USDC ─────────────────
+        // ─── Step 3: Approve USDC ────────────────────────────────────────
 
-        console.log("Step 3: Approving USDC");
         uint256 paymentAmount = 10e6; // 10 USDC
-
         usdc.approve(address(paymentPool), paymentAmount);
-        console.log("  Approved", paymentAmount / 1e6, "USDC to PaymentPool");
+        console.log("Step 3: Approved", paymentAmount / 1e6, "USDC to PaymentPool");
         console.log("");
 
-        // ─── Step 4: Send payment to PaymentPool ───────────────────────
+        // ─── Step 4: Send payment ────────────────────────────────────────
 
-        console.log("Step 4: Sending payment");
+        bytes32 paymentId = keccak256(abi.encodePacked(block.timestamp, deployer, paymentAmount));
+
+        paymentPool.receivePayment(deployer, address(usdc), paymentAmount, paymentId);
+
+        console.log("Step 4: Payment sent!");
         console.log("  Amount:", paymentAmount / 1e6, "USDC");
-        console.log("");
-
-        // Convert timestamp to bytes32 for paymentId
-        bytes32 paymentId = bytes32(block.timestamp);
-
-        paymentPool.receivePayment(
-            deployer, // merchant (yourself for testing)
-            address(usdc), // token
-            paymentAmount, // amount
-            paymentId // paymentId (bytes32)
-        );
-
-        console.log("  Payment sent successfully!");
         console.log("  Payment ID:", uint256(paymentId));
         console.log("");
 
-        // ─── Step 5: Check merchant balance in PaymentPool ─────────────
+        // ─── Step 5: Verify payment in pool ──────────────────────────────
 
         uint256 poolBalance = paymentPool.getMerchantBalance(deployer, address(usdc));
-        console.log("Step 5: Verify payment received");
+        console.log("Step 5: Verify");
         console.log("  Merchant balance in PaymentPool:", poolBalance / 1e6, "USDC");
         console.log("");
 
         vm.stopBroadcast();
 
-        // ─── Instructions for next steps ───────────────────────────────
+        // ─── What to watch for ───────────────────────────────────────────
 
         console.log("=================================================");
-        console.log("NEXT STEPS:");
+        console.log("NOW WATCH THE BACKEND TERMINAL!");
         console.log("=================================================");
         console.log("");
-        console.log("1. Check your backend terminal");
-        console.log("   You should see the payment processing flow:");
-        console.log("   - PaymentReceived event detected");
-        console.log("   - Payment processor (Yellow credit + DB write)");
-        console.log("   - Intent checker (threshold check)");
-        console.log("   - Batch executor (on-chain settlement)");
+        console.log("You should see:");
+        console.log("  1. PaymentReceived event detected");
+        console.log("  2. Payment written to database");
+        console.log("  3. Intent check: IMMEDIATE -> settle now");
+        console.log("  4. Batch settlement executed on-chain");
         console.log("");
-        console.log("2. Wait ~5-10 seconds for settlement");
-        console.log("");
-        console.log("3. Verify settlement completed:");
-        console.log("   Run: forge script script/VerifySettlement.s.sol --rpc-url arc");
-        console.log("");
-        console.log("Your merchant address:", deployer);
+        console.log("After settlement, the merchant balance in");
+        console.log("PaymentPool should return to 0.");
         console.log("=================================================");
     }
 }
