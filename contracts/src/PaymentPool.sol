@@ -78,7 +78,7 @@ contract PaymentPool is Ownable, ReentrancyGuard, Pausable {
 
     /// @notice Addresses authorized to call withdraw (i.e. the BatchSettler contract).
     /// We use a mapping for O(1) lookup.
-    mapping(address => bool) private authorizedWithdrawers;
+    mapping(address => bool) public authorizedWithdrawers;
 
     /// @notice Tokens that are allowed to be deposited into the pool.
     /// Only owner-whitelisted tokens can be used in receivePayment().
