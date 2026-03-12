@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Test} from "forge-std/Test.sol";
 import {PaymentPool} from "../src/PaymentPool.sol";
 import {IntentVault} from "../src/IntentVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -27,7 +26,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *          --private-key $DEPLOYER_PRIVATE_KEY \
  *          --broadcast -vvvv
  */
-contract TestPaymentFlow is Script, Test {
+contract TestPaymentFlow is Script {
     // Arc testnet USDC
     IERC20 constant usdc = IERC20(0x4c20Ca8BF703fe85447954Af3EF0E3eCf16dEdb5);
 
@@ -52,15 +51,17 @@ contract TestPaymentFlow is Script, Test {
         console.log("");
 
         // ─── Step 0: Fund account if on Anvil ────────────────────────────
-        // Anvil's default RPC runs on localhost:8545 with chainId 5042002 (forked).
-        // We detect Anvil by checking if deployer is the well-known Anvil account #0.
-        // On real testnet, this block is skipped entirely.
-
         bool isAnvil = deployer == 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
 
         if (isAnvil) {
             console.log("[Anvil] Detected local fork : funding account...");
-            deal(address(usdc), deployer, 10_000e6); // 10,000 USDC
+
+            // Impersonate a real USDC holder from the Arc testnet fork
+            address arcWhale = 0x172B7952b0F711b8B372410E81d51Dcba7D4BB02;
+            vm.startPrank(arcWhale);
+            usdc.transfer(deployer, 10_000e6); // 10,000 USDC
+            vm.stopPrank();
+
             vm.deal(deployer, 100 ether);
             console.log("[Anvil] Funded: 10,000 USDC + 100 ETH");
             console.log("");
