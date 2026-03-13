@@ -54,16 +54,21 @@ contract TestPaymentFlow is Script {
         bool isAnvil = deployer == 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
 
         if (isAnvil) {
-            console.log("[Anvil] Detected local fork : funding account...");
-
-            // Impersonate a real USDC holder from the Arc testnet fork
-            address arcWhale = 0x172B7952b0F711b8B372410E81d51Dcba7D4BB02;
-            vm.startPrank(arcWhale);
-            usdc.transfer(deployer, 10_000e6); // 10,000 USDC
-            vm.stopPrank();
-
             vm.deal(deployer, 100 ether);
-            console.log("[Anvil] Funded: 10,000 USDC + 100 ETH");
+
+            uint256 currentBalance = usdc.balanceOf(deployer);
+            if (currentBalance < 10e6) {
+                console.log("[Anvil] Insufficient USDC. Run these commands first:");
+                console.log(
+                    '  curl -X POST http://localhost:8545 -H "Content-Type: application/json" -d \'{"jsonrpc":"2.0","method":"anvil_impersonateAccount","params":["0x172B7952b0F711b8B372410E81d51Dcba7D4BB02"],"id":1}\''
+                );
+                console.log(
+                    '  cast send 0x4c20Ca8BF703fe85447954Af3EF0E3eCf16dEdb5 "transfer(address,uint256)(bool)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 10000000000 --from 0x172B7952b0F711b8B372410E81d51Dcba7D4BB02 --unlocked --rpc-url http://localhost:8545'
+                );
+                return;
+            }
+
+            console.log("[Anvil] Account funded:", currentBalance / 1e6, "USDC");
             console.log("");
         }
 
