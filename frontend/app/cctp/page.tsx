@@ -1,0 +1,334 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import {
+  Globe,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  ExternalLink,
+  Shield,
+  Zap,
+  Link2,
+} from 'lucide-react';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface CCTPTransfer {
+  id: string;
+  nonce: string;
+  sourceDomain: number;
+  sourceChain: string;
+  amount: string;
+  depositor: string;
+  status: string;
+  sourceTxHash: string;
+  mintTxHash: string | null;
+  processTxHash: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+const EXPLORER_URL = 'https://testnet.arcscan.app/tx';
+
+// ─── Domain Mapping ──────────────────────────────────────────────────────────
+
+const DOMAIN_NAMES: Record<number, string> = {
+  0: 'Ethereum',
+  1: 'Avalanche',
+  2: 'OP Mainnet',
+  3: 'Arbitrum',
+  6: 'Base',
+  7: 'Polygon',
+  26: 'Arc',
+};
+
+const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
+  DETECTED: { color: 'text-text-secondary', bg: 'bg-surface-overlay', label: 'Detected' },
+  PENDING_ATTESTATION: { color: 'text-warning', bg: 'bg-warning-muted', label: 'Awaiting Attestation' },
+  ATTESTED: { color: 'text-accent', bg: 'bg-accent-muted', label: 'Attested' },
+  MINTING: { color: 'text-accent', bg: 'bg-accent-muted', label: 'Minting' },
+  MINTED: { color: 'text-accent', bg: 'bg-accent-muted', label: 'Minted' },
+  PROCESSING: { color: 'text-accent', bg: 'bg-accent-muted', label: 'Processing' },
+  COMPLETED: { color: 'text-success', bg: 'bg-success-muted', label: 'Completed' },
+  FAILED: { color: 'text-danger', bg: 'bg-danger-muted', label: 'Failed' },
+};
+
+// ─── Page ────────────────────────────────────────────────────────────────────
+
+export default function CCTPPage() {
+  const [transfers, setTransfers] = useState<CCTPTransfer[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTransfers();
+    const interval = setInterval(fetchTransfers, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchTransfers = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/cctp-transfers`);
+      if (res.ok) {
+        setTransfers(await res.json());
+      }
+      setLoading(false);
+    } catch (error) {
+      // API endpoint might not exist yet — that's OK
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-text-primary">Cross-Chain (CCTP V2)</h1>
+        <p className="text-sm text-text-secondary mt-1">
+          USDC transfers via Circle's Cross-Chain Transfer Protocol
+        </p>
+      </div>
+
+      {/* How CCTP Works */}
+      <div className="card p-6 mb-6">
+        <h3 className="text-sm font-semibold text-text-primary mb-4">Transfer Flow</h3>
+        <div className="flex items-center justify-between gap-2">
+          <FlowStep icon={<Globe className="w-4 h-4" />} label="Source Chain" detail="Burn USDC" />
+          <FlowArrow />
+          <FlowStep icon={<Shield className="w-4 h-4" />} label="Attestation" detail="Circle Iris" />
+          <FlowArrow />
+          <FlowStep icon={<Zap className="w-4 h-4" />} label="Arc Mint" detail="receiveMessage" />
+          <FlowArrow />
+          <FlowStep icon={<Link2 className="w-4 h-4" />} label="CCTPReceiver" detail="→ PaymentPool" />
+          <FlowArrow />
+          <FlowStep icon={<CheckCircle2 className="w-4 h-4" />} label="Settlement" detail="V4 Hook" />
+        </div>
+      </div>
+
+      {/* Configuration Status */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <ConfigCard
+          title="CCTPReceiver"
+          address="0x3ea7...d490"
+          status="deployed"
+          details={[
+            { label: 'PaymentPool', value: 'Connected' },
+            { label: 'Ethereum (domain 0)', value: 'Enabled' },
+            { label: 'Base (domain 6)', value: 'Enabled' },
+          ]}
+        />
+        <ConfigCard
+          title="Relayer Service"
+          address="Backend consumer"
+          status="standby"
+          details={[
+            { label: 'Poll interval', value: '2s' },
+            { label: 'Timeout', value: '5 min' },
+            { label: 'Max retries', value: '3' },
+          ]}
+        />
+        <ConfigCard
+          title="Source Chain Monitoring"
+          address="No RPCs configured"
+          status="inactive"
+          details={[
+            { label: 'ETH Sepolia', value: 'Not configured' },
+            { label: 'Base Sepolia', value: 'Not configured' },
+            { label: 'Status', value: 'Set RPCs in .env' },
+          ]}
+        />
+      </div>
+
+      {/* Supported Domains */}
+      <div className="card p-5 mb-6">
+        <h3 className="text-sm font-semibold text-text-primary mb-4">Supported Domains</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <DomainBadge domain={0} name="Ethereum" enabled />
+          <DomainBadge domain={6} name="Base" enabled />
+          <DomainBadge domain={3} name="Arbitrum" enabled={false} />
+          <DomainBadge domain={2} name="OP Mainnet" enabled={false} />
+        </div>
+      </div>
+
+      {/* Transfers Table */}
+      <div className="card overflow-hidden">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-text-primary">CCTP Transfers</h2>
+          <span className="text-xs text-text-muted">
+            {transfers.length} transfer{transfers.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="px-6 py-16 text-center">
+            <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <span className="text-sm text-text-muted">Loading...</span>
+          </div>
+        ) : transfers.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <Globe className="w-8 h-8 text-text-muted mx-auto mb-3" />
+            <p className="text-sm text-text-secondary">No cross-chain transfers yet</p>
+            <p className="text-xs text-text-muted mt-1 max-w-md mx-auto">
+              Configure source chain RPCs (ETH_SEPOLIA_RPC_URL, BASE_SEPOLIA_RPC_URL) in your
+              backend .env to start monitoring for inbound CCTP transfers.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Table Header */}
+            <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-border bg-surface-overlay/50 text-xs font-medium text-text-muted uppercase tracking-wider">
+              <div className="col-span-1">Status</div>
+              <div className="col-span-2">Source</div>
+              <div className="col-span-2">Depositor</div>
+              <div className="col-span-1">Amount</div>
+              <div className="col-span-2">Source Tx</div>
+              <div className="col-span-2">Mint Tx</div>
+              <div className="col-span-2">Time</div>
+            </div>
+
+            <div className="divide-y divide-border">
+              {transfers.map((transfer) => (
+                <TransferRow key={transfer.id} transfer={transfer} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Components ──────────────────────────────────────────────────────────────
+
+function FlowStep({ icon, label, detail }: { icon: React.ReactNode; label: string; detail: string }) {
+  return (
+    <div className="flex flex-col items-center text-center gap-2 flex-1">
+      <div className="w-10 h-10 rounded-lg bg-surface-overlay border border-border flex items-center justify-center text-accent">
+        {icon}
+      </div>
+      <div>
+        <div className="text-xs font-medium text-text-primary">{label}</div>
+        <div className="text-[10px] text-text-muted">{detail}</div>
+      </div>
+    </div>
+  );
+}
+
+function FlowArrow() {
+  return <ArrowRight className="w-4 h-4 text-text-muted shrink-0 mt-[-16px]" />;
+}
+
+function ConfigCard({ title, address, status, details }: {
+  title: string;
+  address: string;
+  status: 'deployed' | 'standby' | 'inactive';
+  details: { label: string; value: string }[];
+}) {
+  const statusColors = {
+    deployed: { dot: 'bg-success', text: 'text-success', label: 'Deployed' },
+    standby: { dot: 'bg-warning', text: 'text-warning', label: 'Standby' },
+    inactive: { dot: 'bg-text-muted', text: 'text-text-muted', label: 'Inactive' },
+  };
+
+  const s = statusColors[status];
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-semibold text-text-primary">{title}</h4>
+        <div className="flex items-center gap-1.5">
+          <div className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+          <span className={`text-[10px] font-medium ${s.text}`}>{s.label}</span>
+        </div>
+      </div>
+      <div className="text-xs font-mono text-text-muted mb-4">{address}</div>
+      <div className="space-y-2">
+        {details.map((d, i) => (
+          <div key={i} className="flex items-center justify-between">
+            <span className="text-xs text-text-muted">{d.label}</span>
+            <span className="text-xs text-text-secondary">{d.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DomainBadge({ domain, name, enabled }: { domain: number; name: string; enabled: boolean }) {
+  return (
+    <div className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border ${
+      enabled
+        ? 'border-success/20 bg-success-muted'
+        : 'border-border bg-surface'
+    }`}>
+      <div className={`w-1.5 h-1.5 rounded-full ${enabled ? 'bg-success' : 'bg-text-muted'}`} />
+      <div>
+        <div className={`text-xs font-medium ${enabled ? 'text-success' : 'text-text-muted'}`}>
+          {name}
+        </div>
+        <div className="text-[10px] text-text-muted">Domain {domain}</div>
+      </div>
+    </div>
+  );
+}
+
+function TransferRow({ transfer }: { transfer: CCTPTransfer }) {
+  const config = STATUS_CONFIG[transfer.status] || STATUS_CONFIG.DETECTED;
+
+  return (
+    <>
+      <div className="grid grid-cols-12 gap-4 px-6 py-4 items-center table-row-hover">
+        <div className="col-span-1">
+          <span className={`text-[10px] font-medium px-2 py-1 rounded ${config.bg} ${config.color}`}>
+            {config.label}
+          </span>
+        </div>
+        <div className="col-span-2">
+          <span className="text-sm text-text-primary">
+            {DOMAIN_NAMES[transfer.sourceDomain] || `Domain ${transfer.sourceDomain}`}
+          </span>
+          <div className="text-[10px] text-text-muted">→ Arc</div>
+        </div>
+        <div className="col-span-2">
+          <span className="text-xs font-mono text-text-secondary">
+            {transfer.depositor.slice(0, 6)}...{transfer.depositor.slice(-4)}
+          </span>
+        </div>
+        <div className="col-span-1">
+          <span className="text-sm font-medium text-text-primary">{transfer.amount}</span>
+          <span className="text-xs text-text-muted ml-1">USDC</span>
+        </div>
+        <div className="col-span-2">
+          <span className="text-xs font-mono text-text-secondary">
+            {transfer.sourceTxHash.slice(0, 8)}...{transfer.sourceTxHash.slice(-6)}
+          </span>
+        </div>
+        <div className="col-span-2">
+          {transfer.mintTxHash ? (
+            <a
+              href={`${EXPLORER_URL}/${transfer.mintTxHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-mono text-success hover:underline flex items-center gap-1"
+            >
+              {transfer.mintTxHash?.slice(0, 8)}...{transfer.mintTxHash?.slice(-6)}
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          ) : (
+            <span className="text-xs text-text-muted">—</span>
+          )}
+        </div>
+        <div className="col-span-2">
+          <span className="text-xs text-text-muted">
+            {new Date(transfer.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+          <div className="text-[10px] text-text-muted">
+            {new Date(transfer.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
