@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import {
   Settings,
   Wallet,
@@ -11,6 +12,7 @@ import {
   Zap,
   Clock,
   TrendingDown,
+  Loader2,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -58,15 +60,72 @@ const CONTRACTS = [
   },
 ];
 
+const ARC_USDC = '0x4c20Ca8BF703fe85447954Af3EF0E3eCf16dEdb5';
+const INTENT_VAULT_ADDRESS = '0x992f46a9Da4458243a05A884D4bD68A851eA1942';
+
+const INTENT_VAULT_ABI = [
+  {
+    name: 'setIntent',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'speed', type: 'uint8' },
+      { name: 'minBatchAmount', type: 'uint256' },
+      { name: 'maxWaitTimeSeconds', type: 'uint256' },
+      { name: 'targetToken', type: 'address' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'getIntent',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'merchant', type: 'address' }],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        components: [
+          { name: 'speed', type: 'uint8' },
+          { name: 'minBatchAmount', type: 'uint256' },
+          { name: 'maxWaitTimeSeconds', type: 'uint256' },
+          { name: 'targetToken', type: 'address' },
+          { name: 'exists', type: 'bool' },
+          { name: 'updatedAt', type: 'uint256' },
+        ],
+      },
+    ],
+  },
+] as const;
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const [contractStatus, setContractStatus] = useState<ContractStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedIntent, setSelectedIntent] = useState<0 | 1 | 2>(0);
+  const [minBatchAmount, setMinBatchAmount] = useState('100');
+  const [maxWaitTime, setMaxWaitTime] = useState('3600');
+  const [txSuccess, setTxSuccess] = useState(false);
+
+  const { address, isConnected } = useAccount();
+
+  const { writeContract, data: txHash, isPending: isSigning, error: writeError } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
 
   useEffect(() => {
     fetchContractStatus();
   }, []);
+
+  useEffect(() => {
+    if (isSuccess) {
+      setTxSuccess(true);
+      setTimeout(() => setTxSuccess(false), 5000);
+    }
+  }, [isSuccess]);
 
   const fetchContractStatus = async () => {
     try {
@@ -80,6 +139,22 @@ export default function SettingsPage() {
       setLoading(false);
     }
   };
+
+  const handleSetIntent = () => {
+    if (!isConnected) return;
+
+    const minBatch = selectedIntent === 2 ? BigInt(parseFloat(minBatchAmount) * 1e6) : BigInt(0);
+    const maxWait = selectedIntent === 1 ? BigInt(maxWaitTime) : BigInt(0);
+
+    writeContract({
+      address: INTENT_VAULT_ADDRESS as `0x${string}`,
+      abi: INTENT_VAULT_ABI,
+      functionName: 'setIntent',
+      args: [selectedIntent, minBatch, maxWait, ARC_USDC as `0x${string}`],
+    });
+  };
+
+  const isProcessing = isSigning || isConfirming;
 
   return (
     <div className="p-8">
@@ -107,26 +182,100 @@ export default function SettingsPage() {
                 icon={<Zap className="w-4 h-4" />}
                 title="Immediate"
                 description="Settle every payment instantly. Higher gas cost, fastest settlement."
-                active={true}
-                tag="Current"
+                active={selectedIntent === 0}
+                onClick={() => setSelectedIntent(0)}
               />
               <IntentOption
                 icon={<Clock className="w-4 h-4" />}
                 title="Standard"
                 description="Wait up to N seconds for batch partners. Balanced speed and cost."
-                active={false}
+                active={selectedIntent === 1}
+                onClick={() => setSelectedIntent(1)}
               />
+              {selectedIntent === 1 && (
+                <div className="ml-12 p-3 rounded-lg bg-surface border border-border">
+                  <label className="text-xs text-text-muted block mb-1.5">Max wait time (seconds)</label>
+                  <input
+                    type="number"
+                    value={maxWaitTime}
+                    onChange={(e) => setMaxWaitTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
+                    placeholder="3600"
+                  />
+                  <p className="text-[10px] text-text-muted mt-1">Default: 3600 (1 hour)</p>
+                </div>
+              )}
               <IntentOption
                 icon={<TrendingDown className="w-4 h-4" />}
                 title="Deferred"
                 description="Wait until balance reaches a threshold. Maximum gas savings."
-                active={false}
+                active={selectedIntent === 2}
+                onClick={() => setSelectedIntent(2)}
               />
-              <p className="text-[10px] text-text-muted pt-2 border-t border-border">
-                Intent is stored on-chain in IntentVault. Change it by calling
-                <code className="mx-1 px-1.5 py-0.5 bg-surface-overlay rounded text-accent">setIntent()</code>
-                from your merchant wallet.
-              </p>
+              {selectedIntent === 2 && (
+                <div className="ml-12 p-3 rounded-lg bg-surface border border-border">
+                  <label className="text-xs text-text-muted block mb-1.5">Minimum batch amount (USDC)</label>
+                  <input
+                    type="number"
+                    value={minBatchAmount}
+                    onChange={(e) => setMinBatchAmount(e.target.value)}
+                    className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
+                    placeholder="100"
+                  />
+                  <p className="text-[10px] text-text-muted mt-1">Settle when balance reaches this amount</p>
+                </div>
+              )}
+
+              {/* Action Button */}
+              <div className="pt-2 border-t border-border">
+                {!isConnected ? (
+                  <p className="text-xs text-text-muted text-center py-2">
+                    Connect your wallet to set intent
+                  </p>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleSetIntent}
+                      disabled={isProcessing}
+                      className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        isProcessing
+                          ? 'bg-accent/30 text-accent/50 cursor-not-allowed'
+                          : 'bg-accent text-white hover:bg-accent-hover'
+                      }`}
+                    >
+                      {isSigning ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Confirm in wallet...
+                        </span>
+                      ) : isConfirming ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Confirming on-chain...
+                        </span>
+                      ) : (
+                        'Set Intent On-chain'
+                      )}
+                    </button>
+
+                    {txSuccess && (
+                      <div className="mt-3 p-2.5 rounded-lg bg-success-muted text-success text-xs text-center flex items-center justify-center gap-1.5">
+                        <Check className="w-3.5 h-3.5" />
+                        Intent updated successfully!
+                      </div>
+                    )}
+
+                    {writeError && (
+                      <div className="mt-3 p-2.5 rounded-lg bg-danger-muted text-danger text-xs text-center">
+                        {writeError.message.includes('User rejected')
+                          ? 'Transaction rejected by user'
+                          : 'Transaction failed — check console'
+                        }
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -223,19 +372,23 @@ export default function SettingsPage() {
 
 // ─── Components ──────────────────────────────────────────────────────────────
 
-function IntentOption({ icon, title, description, active, tag }: {
+function IntentOption({ icon, title, description, active, tag, onClick }: {
   icon: React.ReactNode;
   title: string;
   description: string;
   active: boolean;
   tag?: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
-      active
-        ? 'border-accent/30 bg-accent/5'
-        : 'border-border bg-surface hover:border-border-light'
-    }`}>
+    <button
+      onClick={onClick}
+      className={`w-full flex items-start gap-4 p-4 rounded-lg border transition-colors text-left ${
+        active
+          ? 'border-accent/30 bg-accent/5'
+          : 'border-border bg-surface hover:border-border-light'
+      }`}
+    >
       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
         active ? 'bg-accent/10 text-accent' : 'bg-surface-overlay text-text-muted'
       }`}>
@@ -246,15 +399,15 @@ function IntentOption({ icon, title, description, active, tag }: {
           <span className={`text-sm font-medium ${active ? 'text-text-primary' : 'text-text-secondary'}`}>
             {title}
           </span>
-          {tag && (
+          {active && (
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent/10 text-accent">
-              {tag}
+              Selected
             </span>
           )}
         </div>
         <p className="text-xs text-text-muted mt-0.5">{description}</p>
       </div>
-    </div>
+    </button>
   );
 }
 
