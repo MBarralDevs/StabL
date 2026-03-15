@@ -3,6 +3,7 @@ import '../styles/globals.css';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import Providers from '../components/Providers';
+import OnboardingModal from '../components/OnboardingModal';
 
 export const metadata: Metadata = {
   title: 'StabL — Merchant Dashboard',
@@ -19,20 +20,15 @@ export default function RootLayout({
       <body>
         <Providers>
           <div className="flex h-screen overflow-hidden">
-            {/* Sidebar */}
             <Sidebar />
-
-            {/* Main area */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Header */}
               <Header />
-
-              {/* Page content */}
               <main className="flex-1 overflow-y-auto">
                 {children}
               </main>
             </div>
           </div>
+          <OnboardingModal />
         </Providers>
       </body>
     </html>
