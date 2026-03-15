@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import '../styles/globals.css';
 import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
+import Providers from '../components/Providers';
 
 export const metadata: Metadata = {
   title: 'StabL — Merchant Dashboard',
@@ -15,15 +17,23 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body>
-        <div className="flex h-screen overflow-hidden">
-          {/* Sidebar */}
-          <Sidebar />
+        <Providers>
+          <div className="flex h-screen overflow-hidden">
+            {/* Sidebar */}
+            <Sidebar />
 
-          {/* Main content */}
-          <main className="flex-1 overflow-y-auto">
-            {children}
-          </main>
-        </div>
+            {/* Main area */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Header */}
+              <Header />
+
+              {/* Page content */}
+              <main className="flex-1 overflow-y-auto">
+                {children}
+              </main>
+            </div>
+          </div>
+        </Providers>
       </body>
     </html>
   );
