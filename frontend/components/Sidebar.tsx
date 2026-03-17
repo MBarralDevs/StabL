@@ -9,10 +9,12 @@ import {
   Globe,
   Settings,
   Zap,
+  CreditCard,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
+  { name: 'Pay', href: '/pay', icon: CreditCard },
   { name: 'Payments', href: '/payments', icon: ArrowLeftRight },
   { name: 'Settlements', href: '/settlements', icon: Layers },
   { name: 'CCTP', href: '/cctp', icon: Globe },
