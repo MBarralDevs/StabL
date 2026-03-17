@@ -145,6 +145,15 @@ export async function executeBatchSettlement(request: SettlementRequest): Promis
   try {
     const [valid, errorIndex, reason] = await batchSettler.validateBatch(settlements);
     if (!valid) {
+      const reasonStr = reason.toString();
+
+      if (reasonStr.includes('no intent') || reasonStr.includes('NoIntent')) {
+        console.log(`   ⚠️  Merchant has no on-chain intent — settlement deferred`);
+        console.log(`   ℹ️  Funds safe in PaymentPool (${ethers.formatUnits(balance, 6)} USDC)`);
+        console.log(`   ℹ️  Merchant must call IntentVault.setIntent() to enable settlement`);
+        return;
+      }
+
       console.error(`   ❌ Batch validation failed at index ${errorIndex}: ${reason}`);
       return;
     }

@@ -113,10 +113,18 @@ export async function checkIntent(creditedData: any): Promise<void> {
     throw error;
   }
 
-  // If merchant has no intent set, skip
+  // If merchant has no intent set, default to IMMEDIATE
+  // This ensures payments are always settled — merchants can customize later
   if (!intent.exists) {
-    console.log(`  ⏭️  Merchant has no intent set, skipping`);
-    return;
+    console.log(`  ℹ️  No intent set — defaulting to IMMEDIATE settlement`);
+    intent = {
+      speed: SettlementSpeed.IMMEDIATE,
+      minBatchAmount: BigInt(0),
+      maxWaitTimeSeconds: BigInt(0),
+      targetToken: token, // Settle in same token as received
+      exists: true,
+      updatedAt: BigInt(0),
+    };
   }
 
   // Skip if intent is stale (older than 30 days)

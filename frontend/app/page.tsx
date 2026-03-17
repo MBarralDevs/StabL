@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   DollarSign,
   ArrowUpRight,
@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ExternalLink,
 } from 'lucide-react';
+import { useToast } from '../components/Toast';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,8 @@ export default function OverviewPage() {
     activeChains: 1,
   });
   const [loading, setLoading] = useState(true);
+  const { addToast } = useToast();
+  const prevPaymentCount = useRef(0);
 
   useEffect(() => {
     fetchData();
@@ -72,7 +75,18 @@ export default function OverviewPage() {
 
       if (paymentsRes.ok) {
         const data = await paymentsRes.json();
-        setPayments(data.slice(0, 5)); // Only show 5 most recent
+        setPayments(data.slice(0, 5));
+
+        // Notify on new payments (skip initial load)
+        if (prevPaymentCount.current > 0 && data.length > prevPaymentCount.current) {
+          const newPayment = data[0];
+          addToast({
+            type: newPayment.status === 'settled' ? 'success' : 'info',
+            title: newPayment.status === 'settled' ? 'Payment Settled' : 'Payment Received',
+            message: `${newPayment.amount} USDC from ${newPayment.merchant.slice(0, 6)}...${newPayment.merchant.slice(-4)}`,
+          });
+        }
+        prevPaymentCount.current = data.length;
       }
 
       if (statsRes.ok) {

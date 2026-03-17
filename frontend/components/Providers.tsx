@@ -6,6 +6,9 @@ import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
 import { config } from '../lib/wallet';
 import '@rainbow-me/rainbowkit/styles.css';
 
+// Import ToastProvider directly — make sure the path matches your file structure
+import { ToastProvider } from './Toast';
+
 const queryClient = new QueryClient();
 
 export default function Providers({ children }: { children: React.ReactNode }) {
@@ -20,7 +23,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             overlayBlur: 'small',
           })}
         >
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
