@@ -14,6 +14,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
+import VolumeChart from '../components/VolumeChart';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -139,6 +140,14 @@ export default function OverviewPage() {
           subtitle="V4 Hook fees"
         />
       </div>
+
+      {/* Volume Chart */}
+      <div className="mb-8">
+        <VolumeChart />
+      </div>
+
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6"></div>
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -193,6 +193,59 @@ app.get('/api/settlements', async (req, res) => {
   }
 });
 
+// ─── GET /api/volume-chart ───────────────────────────────────────────────────
+
+app.get('/api/volume-chart', async (req, res) => {
+  try {
+    const payments = await prisma.payment.findMany({
+      where: { settled: true },
+      select: {
+        amount: true,
+        settledAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Group by day
+    const dailyVolume: Record<string, number> = {};
+
+    for (const p of payments) {
+      const date = (p.settledAt || p.createdAt).toISOString().split('T')[0];
+      const amount = Number(BigInt(p.amount)) / 1e6;
+      dailyVolume[date] = (dailyVolume[date] || 0) + amount;
+    }
+
+    // Convert to array and fill in missing days
+    const dates = Object.keys(dailyVolume).sort();
+    if (dates.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const start = new Date(dates[0]);
+    const end = new Date(dates[dates.length - 1]);
+    const result = [];
+    let cumulative = 0;
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const key = d.toISOString().split('T')[0];
+      const volume = dailyVolume[key] || 0;
+      cumulative += volume;
+      result.push({
+        date: key,
+        volume: Math.round(volume * 100) / 100,
+        cumulative: Math.round(cumulative * 100) / 100,
+      });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching volume chart:', error);
+    res.status(500).json({ error: 'Failed to fetch volume chart' });
+  }
+});
+
 // ─── Start ───────────────────────────────────────────────────────────────────
 
 const PORT = process.env.API_PORT || 3002;
