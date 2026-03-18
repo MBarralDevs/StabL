@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import VolumeChart from '../components/VolumeChart';
+import { StatCardSkeleton, PaymentRowSkeleton, StatusCardSkeleton } from '../components/Skeleton';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -114,31 +115,42 @@ export default function OverviewPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard
-          label="Total Volume"
-          value={`$${stats.totalVolume}`}
-          icon={<DollarSign className="w-4 h-4" />}
-          change={stats.totalPayments > 0 ? '+' + stats.totalVolume : undefined}
-          positive={true}
-        />
-        <StatCard
-          label="Payments"
-          value={stats.totalPayments.toString()}
-          icon={<Activity className="w-4 h-4" />}
-          subtitle={`${stats.settledPayments} settled`}
-        />
-        <StatCard
-          label="Avg Settlement"
-          value={stats.avgSettlementTime}
-          icon={<Zap className="w-4 h-4" />}
-          subtitle="IMMEDIATE intent"
-        />
-        <StatCard
-          label="Fees Collected"
-          value={`$${stats.totalFees}`}
-          icon={<TrendingUp className="w-4 h-4" />}
-          subtitle="V4 Hook fees"
-        />
+        {loading ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          <>
+            <StatCard
+              label="Total Volume"
+              value={`$${stats.totalVolume}`}
+              icon={<DollarSign className="w-4 h-4" />}
+              change={stats.totalPayments > 0 ? '+' + stats.totalVolume : undefined}
+              positive={true}
+            />
+            <StatCard
+              label="Payments"
+              value={stats.totalPayments.toString()}
+              icon={<Activity className="w-4 h-4" />}
+              subtitle={`${stats.settledPayments} settled`}
+            />
+            <StatCard
+              label="Avg Settlement"
+              value={stats.avgSettlementTime}
+              icon={<Zap className="w-4 h-4" />}
+              subtitle="IMMEDIATE intent"
+            />
+            <StatCard
+              label="Fees Collected"
+              value={`$${stats.totalFees}`}
+              icon={<TrendingUp className="w-4 h-4" />}
+              subtitle="V4 Hook fees"
+            />
+          </>
+        )}
       </div>
 
       {/* Volume Chart */}
@@ -158,9 +170,10 @@ export default function OverviewPage() {
           </div>
 
           {loading ? (
-            <div className="px-6 py-12 text-center">
-              <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <span className="text-sm text-text-muted">Loading...</span>
+            <div className="divide-y divide-border">
+              <PaymentRowSkeleton />
+              <PaymentRowSkeleton />
+              <PaymentRowSkeleton />
             </div>
           ) : payments.length === 0 ? (
             <div className="px-6 py-12 text-center">
@@ -181,46 +194,56 @@ export default function OverviewPage() {
 
         {/* Right Column — System Status */}
         <div className="space-y-4">
-          {/* Pipeline Status */}
-          <div className="card p-5">
-            <h3 className="text-sm font-semibold text-text-primary mb-4">
-              Pipeline Status
-            </h3>
-            <div className="space-y-3">
-              <StatusRow label="Event Listener" status="active" detail="WebSocket" />
-              <StatusRow label="Payment Consumer" status="active" detail="Redis Streams" />
-              <StatusRow label="Intent Checker" status="active" detail="On-chain" />
-              <StatusRow label="Batch Executor" status="active" detail="BatchSettler" />
-              <StatusRow label="CCTP Relayer" status="standby" detail="No source RPCs" />
-            </div>
-          </div>
+          {loading ? (
+            <>
+              <StatusCardSkeleton />
+              <StatusCardSkeleton />
+              <StatusCardSkeleton />
+            </>
+          ) : (
+            <>
+              {/* Pipeline Status */}
+              <div className="card p-5">
+                <h3 className="text-sm font-semibold text-text-primary mb-4">
+                  Pipeline Status
+                </h3>
+                <div className="space-y-3">
+                  <StatusRow label="Event Listener" status="active" detail="WebSocket" />
+                  <StatusRow label="Payment Consumer" status="active" detail="Redis Streams" />
+                  <StatusRow label="Intent Checker" status="active" detail="On-chain" />
+                  <StatusRow label="Batch Executor" status="active" detail="BatchSettler" />
+                  <StatusRow label="CCTP Relayer" status="standby" detail="No source RPCs" />
+                </div>
+              </div>
 
-          {/* Architecture */}
-          <div className="card p-5">
-            <h3 className="text-sm font-semibold text-text-primary mb-4">
-              Architecture
-            </h3>
-            <div className="space-y-2">
-              <ArchRow label="Cross-chain" value="CCTP V2" />
-              <ArchRow label="Settlement" value="Uniswap V4 Hook" />
-              <ArchRow label="Batching" value="BatchSettler" />
-              <ArchRow label="Fallback" value="Li.Fi SDK" />
-              <ArchRow label="Network" value="Arc Testnet" />
-            </div>
-          </div>
+              {/* Architecture */}
+              <div className="card p-5">
+                <h3 className="text-sm font-semibold text-text-primary mb-4">
+                  Architecture
+                </h3>
+                <div className="space-y-2">
+                  <ArchRow label="Cross-chain" value="CCTP V2" />
+                  <ArchRow label="Settlement" value="Uniswap V4 Hook" />
+                  <ArchRow label="Batching" value="BatchSettler" />
+                  <ArchRow label="Fallback" value="Li.Fi SDK" />
+                  <ArchRow label="Network" value="Arc Testnet" />
+                </div>
+              </div>
 
-          {/* Contracts */}
-          <div className="card p-5">
-            <h3 className="text-sm font-semibold text-text-primary mb-4">
-              Deployed Contracts
-            </h3>
-            <div className="space-y-2">
-              <ContractRow label="PaymentPool" address="0xf929...46B2" />
-              <ContractRow label="IntentVault" address="0x992f...1942" />
-              <ContractRow label="BatchSettler" address="0x6362...6DA9" />
-              <ContractRow label="CCTPReceiver" address="0x3ea7...d490" />
-            </div>
-          </div>
+              {/* Contracts */}
+              <div className="card p-5">
+                <h3 className="text-sm font-semibold text-text-primary mb-4">
+                  Deployed Contracts
+                </h3>
+                <div className="space-y-2">
+                  <ContractRow label="PaymentPool" address="0xf929...46B2" />
+                  <ContractRow label="IntentVault" address="0x992f...1942" />
+                  <ContractRow label="BatchSettler" address="0x6362...6DA9" />
+                  <ContractRow label="CCTPReceiver" address="0x3ea7...d490" />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
