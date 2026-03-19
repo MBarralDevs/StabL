@@ -10,6 +10,7 @@ import {
   Settings,
   Zap,
   CreditCard,
+  X,
 } from 'lucide-react';
 
 const navigation = [
@@ -21,62 +22,95 @@ const navigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-[220px] h-screen bg-surface-raised border-r border-border flex flex-col shrink-0">
-      {/* Logo */}
-      <div className="px-5 py-6 border-b border-border">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center glow-accent">
-            <Zap className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <span className="text-base font-semibold text-text-primary tracking-tight">
-              StabL
-            </span>
-            <span className="block text-[10px] uppercase tracking-widest text-text-muted font-medium">
-              Gateway
-            </span>
-          </div>
-        </Link>
-      </div>
+    <>
+      {/* Mobile backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          onClick={onClose}
+        />
+      )}
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navigation.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`
-                flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                transition-all duration-150
-                ${isActive
-                  ? 'bg-accent/10 text-accent'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-overlay'
-                }
-              `}
-            >
-              <item.icon className={`w-4 h-4 ${isActive ? 'text-accent' : ''}`} />
-              {item.name}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Sidebar */}
+      <aside
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50
+          w-[220px] h-screen bg-surface-raised border-r border-border
+          flex flex-col shrink-0
+          transform transition-transform duration-200 ease-out
+          ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
+        {/* Logo */}
+        <div className="px-5 py-6 border-b border-border flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-3" onClick={onClose}>
+            <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center glow-accent">
+              <Zap className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <span className="text-base font-semibold text-text-primary tracking-tight">
+                StabL
+              </span>
+              <span className="block text-[10px] uppercase tracking-widest text-text-muted font-medium">
+                Gateway
+              </span>
+            </div>
+          </Link>
 
-      {/* Footer */}
-      <div className="px-5 py-4 border-t border-border">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-          <span className="text-xs text-text-muted">Arc Testnet</span>
+          {/* Mobile close button */}
+          <button
+            onClick={onClose}
+            className="lg:hidden p-1 rounded-md text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-        <div className="mt-1 text-[10px] text-text-muted font-mono">
-          v2.0.0
+
+        {/* Navigation */}
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {navigation.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={onClose}
+                className={`
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                  transition-all duration-150
+                  ${isActive
+                    ? 'bg-accent/10 text-accent'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-overlay'
+                  }
+                `}
+              >
+                <item.icon className={`w-4 h-4 ${isActive ? 'text-accent' : ''}`} />
+                {item.name}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+            <span className="text-xs text-text-muted">Arc Testnet</span>
+          </div>
+          <div className="mt-1 text-[10px] text-text-muted font-mono">
+            v2.0.0
+          </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
