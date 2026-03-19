@@ -12,10 +12,12 @@ import {
   CheckCircle2,
   AlertCircle,
   ExternalLink,
+  CreditCard,
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import VolumeChart from '../components/VolumeChart';
 import { StatCardSkeleton, PaymentRowSkeleton, StatusCardSkeleton } from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -176,13 +178,12 @@ export default function OverviewPage() {
               <PaymentRowSkeleton />
             </div>
           ) : payments.length === 0 ? (
-            <div className="px-6 py-12 text-center">
-              <AlertCircle className="w-8 h-8 text-text-muted mx-auto mb-3" />
-              <p className="text-sm text-text-secondary">No payments yet</p>
-              <p className="text-xs text-text-muted mt-1">
-                Send a test payment to see it here
-              </p>
-            </div>
+            <EmptyState
+              icon={<CreditCard className="w-6 h-6 text-text-muted" />}
+              title="No payments yet"
+              description="Send your first payment through the Pay page to see it tracked here in real-time."
+              action={{ label: 'Send a Payment', href: '/pay' }}
+            />
           ) : (
             <div className="divide-y divide-border">
               {payments.map((payment) => (

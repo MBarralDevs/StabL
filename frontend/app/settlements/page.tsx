@@ -9,6 +9,7 @@ import {
   Zap,
   Package,
 } from 'lucide-react';
+import EmptyState from '../../components/EmptyState';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -155,13 +156,12 @@ export default function SettlementsPage() {
             <span className="text-sm text-text-muted">Loading...</span>
           </div>
         ) : settlements.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <Package className="w-8 h-8 text-text-muted mx-auto mb-3" />
-            <p className="text-sm text-text-secondary">No settlements yet</p>
-            <p className="text-xs text-text-muted mt-1">
-              Settlements appear after the batch executor processes payments
-            </p>
-          </div>
+          <EmptyState
+            icon={<Package className="w-6 h-6 text-text-muted" />}
+            title="No settlements yet"
+            description="Settlements are created when the batch executor processes payments based on merchant intents. Send a payment to a merchant with an IMMEDIATE intent to see instant settlement."
+            action={{ label: 'View Payments', href: '/payments' }}
+          />
         ) : (
           <div className="divide-y divide-border">
             {settlements.map((settlement) => (

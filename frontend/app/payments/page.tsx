@@ -10,7 +10,9 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
 } from 'lucide-react';
+import EmptyState from '../../components/EmptyState';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -185,11 +187,20 @@ export default function PaymentsPage() {
             <span className="text-sm text-text-muted">Loading payments...</span>
           </div>
         ) : paginated.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <p className="text-sm text-text-secondary">
-              {payments.length === 0 ? 'No payments yet' : 'No payments match your filters'}
-            </p>
-          </div>
+          payments.length === 0 ? (
+            <EmptyState
+              icon={<CreditCard className="w-6 h-6 text-text-muted" />}
+              title="No payments recorded"
+              description="Payments will appear here once they're processed through the StabL Gateway. Connect your wallet and send a test payment to get started."
+              action={{ label: 'Send a Payment', href: '/pay' }}
+            />
+          ) : (
+            <EmptyState
+              icon={<Search className="w-6 h-6 text-text-muted" />}
+              title="No matching payments"
+              description="Try adjusting your search or filters to find what you're looking for."
+            />
+          )
         ) : (
           <div className="divide-y divide-border">
             {paginated.map((payment) => (

@@ -12,6 +12,7 @@ import {
   Zap,
   Link2,
 } from 'lucide-react';
+import EmptyState from '../../components/EmptyState';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -167,14 +168,12 @@ export default function CCTPPage() {
             <span className="text-sm text-text-muted">Loading...</span>
           </div>
         ) : transfers.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <Globe className="w-8 h-8 text-text-muted mx-auto mb-3" />
-            <p className="text-sm text-text-secondary">No cross-chain transfers yet</p>
-            <p className="text-xs text-text-muted mt-1 max-w-md mx-auto">
-              Configure source chain RPCs (ETH_SEPOLIA_RPC_URL, BASE_SEPOLIA_RPC_URL) in your
-              backend .env to start monitoring for inbound CCTP transfers.
-            </p>
-          </div>
+          <EmptyState
+            icon={<Globe className="w-6 h-6 text-text-muted" />}
+            title="No cross-chain transfers yet"
+            description="CCTP transfers appear when users send USDC from Ethereum or Base to Arc via Circle's Cross-Chain Transfer Protocol. Configure source chain RPCs in your backend .env to start monitoring."
+            action={{ label: 'View Settings', href: '/settings' }}
+          />
         ) : (
           <>
             {/* Table Header */}
