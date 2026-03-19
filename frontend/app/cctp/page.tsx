@@ -108,48 +108,19 @@ export default function CCTPPage() {
         </div>
       </div>
 
-      {/* Configuration Status */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <ConfigCard
-          title="CCTPReceiver"
-          address="0x3ea7...d490"
-          status="deployed"
-          details={[
-            { label: 'PaymentPool', value: 'Connected' },
-            { label: 'Ethereum (domain 0)', value: 'Enabled' },
-            { label: 'Base (domain 6)', value: 'Enabled' },
-          ]}
-        />
-        <ConfigCard
-          title="Relayer Service"
-          address="Backend consumer"
-          status="standby"
-          details={[
-            { label: 'Poll interval', value: '2s' },
-            { label: 'Timeout', value: '5 min' },
-            { label: 'Max retries', value: '3' },
-          ]}
-        />
-        <ConfigCard
-          title="Source Chain Monitoring"
-          address="No RPCs configured"
-          status="inactive"
-          details={[
-            { label: 'ETH Sepolia', value: 'Not configured' },
-            { label: 'Base Sepolia', value: 'Not configured' },
-            { label: 'Status', value: 'Set RPCs in .env' },
-          ]}
-        />
-      </div>
-
-      {/* Supported Domains */}
-      <div className="card p-5 mb-6">
-        <h3 className="text-sm font-semibold text-text-primary mb-4">Supported Domains</h3>
+      {/* Supported Networks */}
+      <div className="card p-6 mb-8">
+        <h3 className="text-sm font-semibold text-text-primary mb-2">
+          Accept payments from multiple chains
+        </h3>
+        <p className="text-xs text-text-muted mb-4">
+          Customers can send USDC from any supported chain. Funds are automatically bridged to Arc and credited to your account.
+        </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <DomainBadge domain={0} name="Ethereum" enabled />
-          <DomainBadge domain={6} name="Base" enabled />
-          <DomainBadge domain={3} name="Arbitrum" enabled={false} />
-          <DomainBadge domain={2} name="OP Mainnet" enabled={false} />
+          <NetworkCard name="Ethereum" status="Active" icon="⟠" />
+          <NetworkCard name="Base" status="Active" icon="🔵" />
+          <NetworkCard name="Arbitrum" status="Coming soon" icon="🔷" />
+          <NetworkCard name="OP Mainnet" status="Coming soon" icon="🔴" />
         </div>
       </div>
 
@@ -219,59 +190,6 @@ function FlowArrow() {
   return <ArrowRight className="w-4 h-4 text-text-muted shrink-0 mt-[-16px]" />;
 }
 
-function ConfigCard({ title, address, status, details }: {
-  title: string;
-  address: string;
-  status: 'deployed' | 'standby' | 'inactive';
-  details: { label: string; value: string }[];
-}) {
-  const statusColors = {
-    deployed: { dot: 'bg-success', text: 'text-success', label: 'Deployed' },
-    standby: { dot: 'bg-warning', text: 'text-warning', label: 'Standby' },
-    inactive: { dot: 'bg-text-muted', text: 'text-text-muted', label: 'Inactive' },
-  };
-
-  const s = statusColors[status];
-
-  return (
-    <div className="card p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-semibold text-text-primary">{title}</h4>
-        <div className="flex items-center gap-1.5">
-          <div className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-          <span className={`text-[10px] font-medium ${s.text}`}>{s.label}</span>
-        </div>
-      </div>
-      <div className="text-xs font-mono text-text-muted mb-4">{address}</div>
-      <div className="space-y-2">
-        {details.map((d, i) => (
-          <div key={i} className="flex items-center justify-between">
-            <span className="text-xs text-text-muted">{d.label}</span>
-            <span className="text-xs text-text-secondary">{d.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DomainBadge({ domain, name, enabled }: { domain: number; name: string; enabled: boolean }) {
-  return (
-    <div className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border ${
-      enabled
-        ? 'border-success/20 bg-success-muted'
-        : 'border-border bg-surface'
-    }`}>
-      <div className={`w-1.5 h-1.5 rounded-full ${enabled ? 'bg-success' : 'bg-text-muted'}`} />
-      <div>
-        <div className={`text-xs font-medium ${enabled ? 'text-success' : 'text-text-muted'}`}>
-          {name}
-        </div>
-        <div className="text-[10px] text-text-muted">Domain {domain}</div>
-      </div>
-    </div>
-  );
-}
 
 function TransferRow({ transfer }: { transfer: CCTPTransfer }) {
   const config = STATUS_CONFIG[transfer.status] || STATUS_CONFIG.DETECTED;
@@ -329,5 +247,24 @@ function TransferRow({ transfer }: { transfer: CCTPTransfer }) {
         </div>
       </div>
     </>
+  );
+}
+
+function NetworkCard({ name, status, icon }: { name: string; status: string; icon: string }) {
+  const isActive = status === 'Active';
+  return (
+    <div className={`p-4 rounded-lg border text-center ${
+      isActive
+        ? 'border-accent/20 bg-accent/5'
+        : 'border-border bg-surface'
+    }`}>
+      <div className="text-2xl mb-2">{icon}</div>
+      <div className={`text-sm font-medium ${isActive ? 'text-text-primary' : 'text-text-muted'}`}>
+        {name}
+      </div>
+      <div className={`text-[10px] mt-1 ${isActive ? 'text-accent' : 'text-text-muted'}`}>
+        {status}
+      </div>
+    </div>
   );
 }

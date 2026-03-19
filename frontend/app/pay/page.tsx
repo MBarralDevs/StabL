@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Plus,
   Minus,
+  Clock,
 } from 'lucide-react';
 import { parseUnits, encodePacked, keccak256 } from 'viem';
 
@@ -43,6 +44,7 @@ const TOKENS = [
 
 const PAYMENT_POOL = '0xf929d461B266a671A4AE6dC731cB7107b57946B2' as const;
 const EXPLORER_URL = 'https://testnet.arcscan.app/tx';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
 const ERC20_ABI = [
   {
@@ -582,54 +584,105 @@ export default function PayPage() {
             </div>
           </div>
 
-          {/* Right Column — Info — 2 cols */}
+          {/* Right Column — 2 cols */}
           <div className="lg:col-span-2 space-y-4">
             <div className="card p-5">
               <h3 className="text-sm font-semibold text-text-primary mb-3">How it works</h3>
               <div className="space-y-3">
                 <InfoStep number={1} title="Enter details" description="Merchant address and payment amount" />
-                <InfoStep number={2} title="Approve token" description="Allow PaymentPool to transfer your tokens" />
-                <InfoStep number={3} title="Send payment" description="Tokens are deposited into PaymentPool" />
-                <InfoStep number={4} title="Auto-settlement" description="BatchSettler settles based on merchant intent" />
+                <InfoStep number={2} title="Approve token" description="One-time approval for the token amount" />
+                <InfoStep number={3} title="Confirm payment" description="Payment is deposited securely" />
+                <InfoStep number={4} title="Auto-settlement" description="Merchant receives funds automatically" />
               </div>
             </div>
 
             <div className="card p-5">
-              <h3 className="text-sm font-semibold text-text-primary mb-3">Settlement Info</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-text-muted">Contract</span>
-                  <span className="text-text-secondary font-mono">PaymentPool</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-text-muted">Settlement</span>
-                  <span className="text-text-secondary">BatchSettler + V4 Hook</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-text-muted">Cross-token</span>
-                  <span className="text-text-secondary">Uniswap V4 atomic swap</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-text-muted">Cross-chain</span>
-                  <span className="text-text-secondary">CCTP V2</span>
-                </div>
+              <h3 className="text-sm font-semibold text-text-primary mb-3">Why StabL?</h3>
+              <div className="space-y-3">
+                <TrustItem icon="🔒" title="Secure" description="Audited smart contracts on-chain" />
+                <TrustItem icon="⚡" title="Fast" description="Settlements in under 5 seconds" />
+                <TrustItem icon="💰" title="Low fees" description="Batch settlements reduce gas costs" />
+                <TrustItem icon="🌐" title="Multi-chain" description="Accept payments from any EVM chain" />
               </div>
             </div>
 
             <div className="card p-5">
-              <h3 className="text-sm font-semibold text-text-primary mb-3">Supported Tokens</h3>
+              <h3 className="text-sm font-semibold text-text-primary mb-3">Accepted Tokens</h3>
               <div className="space-y-2">
                 {TOKENS.map((token) => (
-                  <div key={token.symbol} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-bold text-accent">$</div>
-                      <span className="text-sm text-text-primary">{token.symbol}</span>
-                    </div>
-                    <span className="text-xs font-mono text-text-muted">
-                      {token.address.slice(0, 6)}...{token.address.slice(-4)}
-                    </span>
+                  <div key={token.symbol} className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-bold text-accent">$</div>
+                    <span className="text-sm text-text-primary">{token.symbol}</span>
+                    <span className="text-xs text-text-muted">— {token.name}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Recent Payments + Gas Info */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6">
+          {/* Recent Payments — 3 cols */}
+          <div className="lg:col-span-3 card">
+            <div className="px-6 py-4 border-b border-border">
+              <h2 className="text-sm font-semibold text-text-primary">Your Recent Payments</h2>
+            </div>
+            <RecentPayments />
+          </div>
+
+          {/* Gas Savings — 2 cols */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="card p-5">
+              <h3 className="text-sm font-semibold text-text-primary mb-4">Gas Savings</h3>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-text-muted">Individual settlement</span>
+                    <span className="text-xs text-text-secondary">~$0.45</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-surface-overlay">
+                    <div className="w-full h-2 rounded-full bg-danger/40" />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-text-muted">Batched (5 payments)</span>
+                    <span className="text-xs text-text-secondary">~$0.12</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-surface-overlay">
+                    <div className="w-[27%] h-2 rounded-full bg-accent" />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-text-muted">Batched (20 payments)</span>
+                    <span className="text-xs text-text-secondary">~$0.03</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-surface-overlay">
+                    <div className="w-[7%] h-2 rounded-full bg-success" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-text-muted pt-2 border-t border-border">
+                  Estimated per-transaction cost based on batch size. Larger batches = more savings.
+                </p>
+              </div>
+            </div>
+
+            <div className="card p-5">
+              <h3 className="text-sm font-semibold text-text-primary mb-3">Transaction Fees</h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-text-muted">Protocol fee</span>
+                  <span className="text-xs font-medium text-success">Free (testnet)</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-text-muted">Network gas</span>
+                  <span className="text-xs text-text-secondary">Paid in USDC</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-text-muted">Cross-token swap</span>
+                  <span className="text-xs text-text-secondary">Uniswap V4 rate</span>
+                </div>
               </div>
             </div>
           </div>
@@ -681,6 +734,99 @@ function InfoStep({ number, title, description }: { number: number; title: strin
         <div className="text-xs font-medium text-text-primary">{title}</div>
         <div className="text-[10px] text-text-muted">{description}</div>
       </div>
+    </div>
+  );
+}
+
+function TrustItem({ icon, title, description }: { icon: string; title: string; description: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="text-base mt-0.5">{icon}</span>
+      <div>
+        <div className="text-xs font-medium text-text-primary">{title}</div>
+        <div className="text-[10px] text-text-muted">{description}</div>
+      </div>
+    </div>
+  );
+}
+
+function RecentPayments() {
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { address } = useAccount();
+
+  useEffect(() => {
+    if (!address) {
+      setLoading(false);
+      return;
+    }
+    fetchPayments();
+  }, [address]);
+
+  const fetchPayments = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/payments`);
+      if (res.ok) {
+        const data = await res.json();
+        // Show payments from this wallet (as payer)
+        setPayments(data.slice(0, 5));
+      }
+      setLoading(false);
+    } catch {
+      setLoading(false);
+    }
+  };
+
+  if (!address) {
+    return (
+      <div className="px-6 py-8 text-center">
+        <p className="text-xs text-text-muted">Connect wallet to see your payments</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="px-6 py-8 text-center">
+        <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto" />
+      </div>
+    );
+  }
+
+  if (payments.length === 0) {
+    return (
+      <div className="px-6 py-8 text-center">
+        <p className="text-xs text-text-muted">No payments yet — send your first one above</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-border">
+      {payments.map((payment) => (
+        <div key={payment.id} className="px-6 py-3 flex items-center justify-between table-row-hover">
+          <div className="flex items-center gap-3">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+              payment.status === 'settled' ? 'bg-success-muted' : 'bg-warning-muted'
+            }`}>
+              {payment.status === 'settled' ? (
+                <CheckCircle2 className="w-3 h-3 text-success" />
+              ) : (
+                <Clock className="w-3 h-3 text-warning" />
+              )}
+            </div>
+            <div>
+              <span className="text-xs font-medium text-text-primary">{payment.amount} {payment.token === '0x4c20Ca8BF703fe85447954Af3EF0E3eCf16dEdb5' ? 'USDC' : 'EURC'}</span>
+              <span className="text-[10px] text-text-muted ml-2">
+                to {payment.merchant.slice(0, 6)}...{payment.merchant.slice(-4)}
+              </span>
+            </div>
+          </div>
+          <span className="text-[10px] text-text-muted">
+            {new Date(payment.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

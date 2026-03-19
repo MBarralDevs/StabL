@@ -13,11 +13,14 @@ import {
   AlertCircle,
   ExternalLink,
   CreditCard,
+  Layers,
+  Settings,
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import VolumeChart from '../components/VolumeChart';
 import { StatCardSkeleton, PaymentRowSkeleton, StatusCardSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
+import { useAccount, useReadContract } from 'wagmi';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -193,58 +196,72 @@ export default function OverviewPage() {
           )}
         </div>
 
-        {/* Right Column — System Status */}
+        {/* Right Column */}
         <div className="space-y-4">
-          {loading ? (
-            <>
-              <StatusCardSkeleton />
-              <StatusCardSkeleton />
-              <StatusCardSkeleton />
-            </>
-          ) : (
-            <>
-              {/* Pipeline Status */}
-              <div className="card p-5">
-                <h3 className="text-sm font-semibold text-text-primary mb-4">
-                  Pipeline Status
-                </h3>
-                <div className="space-y-3">
-                  <StatusRow label="Event Listener" status="active" detail="WebSocket" />
-                  <StatusRow label="Payment Consumer" status="active" detail="Redis Streams" />
-                  <StatusRow label="Intent Checker" status="active" detail="On-chain" />
-                  <StatusRow label="Batch Executor" status="active" detail="BatchSettler" />
-                  <StatusRow label="CCTP Relayer" status="standby" detail="No source RPCs" />
+          {/* Quick Actions */}
+          <div className="card p-5">
+            <h3 className="text-sm font-semibold text-text-primary mb-4">Quick Actions</h3>
+            <div className="space-y-2">
+              <a href="/pay" className="flex items-center gap-3 p-3 rounded-lg bg-accent/5 border border-accent/20 hover:bg-accent/10 transition-colors">
+                <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <CreditCard className="w-4 h-4 text-accent" />
                 </div>
-              </div>
+                <div>
+                  <div className="text-sm font-medium text-text-primary">Send Payment</div>
+                  <div className="text-[10px] text-text-muted">Pay a merchant via StabL</div>
+                </div>
+              </a>
+              <a href="/settlements" className="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-overlay transition-colors">
+                <div className="w-8 h-8 rounded-lg bg-surface-overlay flex items-center justify-center">
+                  <Layers className="w-4 h-4 text-text-secondary" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-text-primary">View Settlements</div>
+                  <div className="text-[10px] text-text-muted">Track your batch settlements</div>
+                </div>
+              </a>
+              <a href="/settings" className="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-overlay transition-colors">
+                <div className="w-8 h-8 rounded-lg bg-surface-overlay flex items-center justify-center">
+                  <Settings className="w-4 h-4 text-text-secondary" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-text-primary">Settlement Settings</div>
+                  <div className="text-[10px] text-text-muted">Change your settlement speed</div>
+                </div>
+              </a>
+            </div>
+          </div>
 
-              {/* Architecture */}
-              <div className="card p-5">
-                <h3 className="text-sm font-semibold text-text-primary mb-4">
-                  Architecture
-                </h3>
-                <div className="space-y-2">
-                  <ArchRow label="Cross-chain" value="CCTP V2" />
-                  <ArchRow label="Settlement" value="Uniswap V4 Hook" />
-                  <ArchRow label="Batching" value="BatchSettler" />
-                  <ArchRow label="Fallback" value="Li.Fi SDK" />
-                  <ArchRow label="Network" value="Arc Testnet" />
-                </div>
-              </div>
+          {/* Account Summary */}
+          <AccountSummary />
 
-              {/* Contracts */}
-              <div className="card p-5">
-                <h3 className="text-sm font-semibold text-text-primary mb-4">
-                  Deployed Contracts
-                </h3>
-                <div className="space-y-2">
-                  <ContractRow label="PaymentPool" address="0xf929...46B2" />
-                  <ContractRow label="IntentVault" address="0x992f...1942" />
-                  <ContractRow label="BatchSettler" address="0x6362...6DA9" />
-                  <ContractRow label="CCTPReceiver" address="0x3ea7...d490" />
+          {/* Network Status */}
+          <div className="card p-5">
+            <h3 className="text-sm font-semibold text-text-primary mb-4">System Status</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-text-secondary">Gateway</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-success" />
+                  <span className="text-xs text-success font-medium">Operational</span>
                 </div>
               </div>
-            </>
-          )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-text-secondary">Settlement Engine</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-success" />
+                  <span className="text-xs text-success font-medium">Active</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-text-secondary">Cross-chain (CCTP)</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-warning" />
+                  <span className="text-xs text-warning font-medium">Standby</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -340,38 +357,75 @@ function PaymentRow({ payment }: { payment: Payment }) {
   );
 }
 
-function StatusRow({ label, status, detail }: { label: string; status: 'active' | 'standby' | 'error'; detail: string }) {
-  const colors = {
-    active: 'bg-success',
-    standby: 'bg-warning',
-    error: 'bg-danger',
-  };
+function AccountSummary() {
+  const { address, isConnected } = useAccount();
 
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <div className={`w-1.5 h-1.5 rounded-full ${colors[status]}`} />
-        <span className="text-sm text-text-secondary">{label}</span>
+  const INTENT_VAULT_ADDRESS = '0x992f46a9Da4458243a05A884D4bD68A851eA1942';
+  const INTENT_VAULT_ABI = [{
+    name: 'getIntent',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'merchant', type: 'address' }],
+    outputs: [{
+      name: '',
+      type: 'tuple',
+      components: [
+        { name: 'speed', type: 'uint8' },
+        { name: 'minBatchAmount', type: 'uint256' },
+        { name: 'maxWaitTimeSeconds', type: 'uint256' },
+        { name: 'targetToken', type: 'address' },
+        { name: 'exists', type: 'bool' },
+        { name: 'updatedAt', type: 'uint256' },
+      ],
+    }],
+  }] as const;
+
+  const { data: intent } = useReadContract({
+    address: INTENT_VAULT_ADDRESS as `0x${string}`,
+    abi: INTENT_VAULT_ABI,
+    functionName: 'getIntent',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
+
+  const speedNames = ['Immediate', 'Standard', 'Deferred'];
+
+  if (!isConnected) {
+    return (
+      <div className="card p-5">
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Account</h3>
+        <p className="text-xs text-text-muted">Connect your wallet to view account details</p>
       </div>
-      <span className="text-xs text-text-muted">{detail}</span>
-    </div>
-  );
-}
+    );
+  }
 
-function ArchRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="text-xs font-medium text-text-secondary">{value}</span>
-    </div>
-  );
-}
-
-function ContractRow({ label, address }: { label: string; address: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="text-xs font-mono text-text-secondary">{address}</span>
+    <div className="card p-5">
+      <h3 className="text-sm font-semibold text-text-primary mb-4">Account</h3>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-text-muted">Wallet</span>
+          <span className="text-xs font-mono text-text-secondary">
+            {address?.slice(0, 6)}...{address?.slice(-4)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-text-muted">Settlement Mode</span>
+          {intent?.exists ? (
+            <span className="text-xs font-medium text-accent">
+              {speedNames[intent.speed] || 'Unknown'}
+            </span>
+          ) : (
+            <a href="/settings" className="text-xs text-warning hover:underline">
+              Not configured
+            </a>
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-text-muted">Network</span>
+          <span className="text-xs text-text-secondary">Arc Testnet</span>
+        </div>
+      </div>
     </div>
   );
 }

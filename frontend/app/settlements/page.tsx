@@ -8,6 +8,7 @@ import {
   DollarSign,
   Zap,
   Package,
+  Clock,
 } from 'lucide-react';
 import EmptyState from '../../components/EmptyState';
 
@@ -115,20 +116,41 @@ export default function SettlementsPage() {
         />
       </div>
 
-      {/* How It Works */}
+      {/* How Settlements Work */}
       <div className="card p-5 mb-6">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">Settlement Pipeline</h3>
-        <div className="flex items-center gap-2 text-xs">
-          <PipelineStep label="Payment Received" active />
-          <PipelineArrow />
-          <PipelineStep label="DB Recorded" active />
-          <PipelineArrow />
-          <PipelineStep label="Intent Checked" active />
-          <PipelineArrow />
-          <PipelineStep label="Batch Validated" active />
-          <PipelineArrow />
-          <PipelineStep label="On-chain Settlement" active />
+        <h3 className="text-sm font-semibold text-text-primary mb-4">How Settlements Work</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 rounded-lg bg-surface-overlay border border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="w-4 h-4 text-accent" />
+              <span className="text-sm font-medium text-text-primary">Immediate</span>
+            </div>
+            <p className="text-xs text-text-muted leading-relaxed">
+              Every payment settles instantly. Best for speed, higher gas per transaction.
+            </p>
+          </div>
+          <div className="p-4 rounded-lg bg-surface-overlay border border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-4 h-4 text-warning" />
+              <span className="text-sm font-medium text-text-primary">Standard</span>
+            </div>
+            <p className="text-xs text-text-muted leading-relaxed">
+              Waits for batch partners to share gas costs. Balanced speed and savings.
+            </p>
+          </div>
+          <div className="p-4 rounded-lg bg-surface-overlay border border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingDown className="w-4 h-4 text-success" />
+              <span className="text-sm font-medium text-text-primary">Deferred</span>
+            </div>
+            <p className="text-xs text-text-muted leading-relaxed">
+              Accumulates until a threshold is reached. Maximum gas savings for high volume.
+            </p>
+          </div>
         </div>
+        <p className="text-[10px] text-text-muted mt-3 text-center">
+          Change your settlement preference anytime in <a href="/settings" className="text-accent hover:underline">Settings</a>
+        </p>
       </div>
 
       {/* Settlements Table */}

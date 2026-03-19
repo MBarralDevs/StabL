@@ -52,7 +52,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         {/* Logo */}
         <div className="px-5 py-6 border-b border-border flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3" onClick={onClose}>
-            <img src="/logo.png" alt="StabL" className="w-8 h-8 rounded-lg" />
+            <img src="/logo.png" alt="StabL" className="w-20 h-20 rounded-lg" />
             <div>
               <span className="text-base font-semibold text-text-primary tracking-tight">
                 StabL
