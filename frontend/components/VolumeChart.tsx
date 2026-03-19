@@ -94,8 +94,8 @@ export default function VolumeChart() {
             <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#4A7C59" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#4A7C59" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#1E2536" vertical={false} />
@@ -127,7 +127,7 @@ export default function VolumeChart() {
               <Area
                 type="monotone"
                 dataKey={dataKey}
-                stroke="#3B82F6"
+                stroke="#4A7C59"
                 strokeWidth={2}
                 fill="url(#volumeGradient)"
               />

@@ -8,23 +8,26 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // StabL dark theme
         surface: {
-          DEFAULT: "#0B0F1A",
-          raised: "#131825",
-          overlay: "#1A2035",
+          DEFAULT: "#0B110E",
+          raised: "#121D17",
+          overlay: "#1A2820",
         },
         border: {
-          DEFAULT: "#1E2536",
-          light: "#2A3348",
+          DEFAULT: "#1E2E25",
+          light: "#2A3E32",
         },
         accent: {
-          DEFAULT: "#3B82F6",
-          hover: "#2563EB",
-          muted: "#1E3A5F",
+          DEFAULT: "#4A7C59",
+          hover: "#3D6B4A",
+          muted: "#1A3328",
+        },
+        secondary: {
+          DEFAULT: "#8B6F4E",
+          muted: "#2E2418",
         },
         success: {
-          DEFAULT: "#10B981",
+          DEFAULT: "#22C55E",
           muted: "#064E3B",
         },
         warning: {
@@ -37,8 +40,8 @@ module.exports = {
         },
         text: {
           primary: "#F1F5F9",
-          secondary: "#64748B",
-          muted: "#475569",
+          secondary: "#94A3B8",
+          muted: "#64748B",
         },
       },
       fontFamily: {

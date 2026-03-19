@@ -17,7 +17,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           theme={darkTheme({
-            accentColor: '#3B82F6',
+            accentColor: '#4A7C59',
             accentColorForeground: 'white',
             borderRadius: 'medium',
             overlayBlur: 'small',

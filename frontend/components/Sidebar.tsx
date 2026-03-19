@@ -8,7 +8,6 @@ import {
   Layers,
   Globe,
   Settings,
-  Zap,
   CreditCard,
   X,
 } from 'lucide-react';
@@ -53,9 +52,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         {/* Logo */}
         <div className="px-5 py-6 border-b border-border flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3" onClick={onClose}>
-            <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center glow-accent">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
+            <img src="/logo.png" alt="StabL" className="w-8 h-8 rounded-lg" />
             <div>
               <span className="text-base font-semibold text-text-primary tracking-tight">
                 StabL
