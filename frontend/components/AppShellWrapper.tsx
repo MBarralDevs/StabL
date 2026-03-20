@@ -6,8 +6,8 @@ import AppShell from './AppShell';
 export default function AppShellWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // Home page renders without the dashboard shell
-  if (pathname === '/home') {
+  // Landing page renders without the dashboard shell
+  if (pathname === '/') {
     return <>{children}</>;
   }
 

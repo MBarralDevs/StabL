@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 const navigation = [
-  { name: 'Overview', href: '/', icon: LayoutDashboard },
+  { name: 'Overview', href: '/overview', icon: LayoutDashboard },
   { name: 'Pay', href: '/pay', icon: CreditCard },
   { name: 'Payments', href: '/payments', icon: ArrowLeftRight },
   { name: 'Settlements', href: '/settlements', icon: Layers },
@@ -56,7 +56,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       >
         {/* Logo */}
         <div className="px-5 py-6 border-b border-border flex items-center justify-between">
-          <Link href="/home" className="flex items-center gap-3" onClick={onClose}>
+          <Link href="/" className="flex items-center gap-3" onClick={onClose}>
             <img src="/logo.png" alt="StabL" className="w-20 h-20 rounded-lg" />
             <div>
               <span className="text-base font-semibold text-text-primary tracking-tight">
