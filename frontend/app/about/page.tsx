@@ -19,23 +19,65 @@ export default function AboutPage() {
       </div>
 
       {/* Problem / Solution */}
+      {/* Problem / Solution */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold text-text-primary mb-3">The Problem</h2>
-          <p className="text-sm text-text-muted leading-relaxed">
-            Current stablecoin payment systems force merchants to choose between
-            <strong className="text-text-secondary"> speed</strong> (pay high gas fees for instant settlement) and
-            <strong className="text-text-secondary"> cost</strong> (wait indefinitely for cheaper settlement).
-            This creates a poor experience where merchants either overpay or lose access to their funds.
-          </p>
+        {/* The Problem */}
+        <div className="card p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-danger/40" />
+          <h2 className="text-lg font-semibold text-danger mb-4">The Problem</h2>
+          <div className="space-y-4">
+            <ProblemItem
+              emoji="💸"
+              title="High gas fees"
+              description="Instant settlement costs merchants $0.30-0.50 per transaction"
+            />
+            <ProblemItem
+              emoji="⏳"
+              title="Slow alternatives"
+              description="Cheaper batch options lock funds for hours or days"
+            />
+            <ProblemItem
+              emoji="🔒"
+              title="Chain lock-in"
+              description="Most gateways only support one chain, limiting customer reach"
+            />
+          </div>
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs text-danger/80 italic">
+              Merchants are forced to choose between speed and cost — they shouldn't have to.
+            </p>
+          </div>
         </div>
-        <div className="card p-6 border-accent/20">
-          <h2 className="text-lg font-semibold text-accent mb-3">The Solution</h2>
-          <p className="text-sm text-text-muted leading-relaxed">
-            StabL decouples payment receipt from settlement using a
-            <strong className="text-text-secondary"> carpool model</strong>. Merchants declare their settlement preferences, and the protocol automatically
-            batches compatible settlements to minimize gas costs — the more merchants use StabL, the cheaper it gets for everyone.
-          </p>
+
+        {/* The Solution */}
+        <div className="card p-6 relative overflow-hidden border-accent/20">
+          <div className="absolute top-0 left-0 w-1 h-full bg-accent" />
+          <h2 className="text-lg font-semibold text-accent mb-4">The Solution</h2>
+          <div className="space-y-4">
+            <SolutionItem
+              icon="🚗"
+              title="Carpool model"
+              description="Merchants share settlement gas costs — like splitting an Uber"
+              saving="Up to 95% cheaper"
+            />
+            <SolutionItem
+              icon="🎛️"
+              title="Merchant-controlled"
+              description="Choose your settlement speed: Immediate, Standard, or Deferred"
+              saving="Your funds, your rules"
+            />
+            <SolutionItem
+              icon="🌐"
+              title="Any chain, any token"
+              description="Accept USDC from Ethereum, Base, Arbitrum via CCTP V2"
+              saving="One integration"
+            />
+          </div>
+          <div className="mt-4 pt-4 border-t border-accent/10">
+            <p className="text-xs text-accent/80 italic">
+              The more merchants join, the cheaper it gets for everyone.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -182,6 +224,42 @@ function TechItem({ name, detail }: { name: string; detail: string }) {
     <div className="text-center">
       <div className="text-sm font-medium text-text-primary">{name}</div>
       <div className="text-[10px] text-text-muted mt-0.5">{detail}</div>
+    </div>
+  );
+}
+
+function ProblemItem({ emoji, title, description }: {
+  emoji: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="text-lg mt-0.5">{emoji}</span>
+      <div>
+        <div className="text-sm font-medium text-text-primary">{title}</div>
+        <div className="text-xs text-text-muted mt-0.5">{description}</div>
+      </div>
+    </div>
+  );
+}
+
+function SolutionItem({ icon, title, description, saving }: {
+  icon: string;
+  title: string;
+  description: string;
+  saving: string;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="text-lg mt-0.5">{icon}</span>
+      <div className="flex-1">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-text-primary">{title}</span>
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent/10 text-accent">{saving}</span>
+        </div>
+        <div className="text-xs text-text-muted mt-0.5">{description}</div>
+      </div>
     </div>
   );
 }
