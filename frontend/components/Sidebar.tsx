@@ -9,7 +9,10 @@ import {
   Globe,
   Settings,
   CreditCard,
+  Info,
+  BookOpen,
   X,
+  ExternalLink,
 } from 'lucide-react';
 
 const navigation = [
@@ -19,6 +22,8 @@ const navigation = [
   { name: 'Settlements', href: '/settlements', icon: Layers },
   { name: 'CCTP', href: '/cctp', icon: Globe },
   { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'About', href: '/about', icon: Info },
+  { name: 'Docs', href: '/docs', icon: BookOpen, external: true },
 ];
 
 interface SidebarProps {
@@ -55,7 +60,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <img src="/logo.png" alt="StabL" className="w-20 h-20 rounded-lg" />
             <div>
               <span className="text-base font-semibold text-text-primary tracking-tight">
-                StabL
+                STABL
               </span>
               <span className="block text-[10px] uppercase tracking-widest text-text-muted font-medium">
                 Gateway
@@ -76,6 +81,23 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <nav className="flex-1 px-3 py-4 space-y-1">
           {navigation.map((item) => {
             const isActive = pathname === item.href;
+
+            if ((item as any).external) {
+              return (
+                <a
+                  key={item.name}
+                  href="https://docs.stabl.dev"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-overlay transition-all duration-150"
+                >
+                  <item.icon className="w-4 h-4" />
+                  {item.name}
+                  <ExternalLink className="w-3 h-3 ml-auto text-text-muted" />
+                </a>
+              );
+            }
+
             return (
               <Link
                 key={item.name}

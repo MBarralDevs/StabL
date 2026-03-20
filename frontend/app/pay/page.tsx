@@ -232,355 +232,203 @@ export default function PayPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Payment Widget — 3 cols */}
-          <div className="lg:col-span-3 card overflow-hidden">
-            {/* Progress */}
-            <div className="px-6 py-4 border-b border-border bg-surface-overlay/30">
-              <div className="flex items-center justify-between">
-                <ProgressStep label="Details" number={1} active={step === 'details'} done={step !== 'details'} />
-                <ProgressLine active={step !== 'details'} />
-                <ProgressStep label="Approve" number={2} active={step === 'approve'} done={step === 'pay' || step === 'confirming' || step === 'success'} />
-                <ProgressLine active={step === 'pay' || step === 'confirming' || step === 'success'} />
-                <ProgressStep label="Pay" number={3} active={step === 'pay' || step === 'confirming'} done={step === 'success'} />
+          {/* Left Column — 3 cols */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Payment Widget */}
+            <div className="card overflow-hidden">
+              {/* Progress */}
+              <div className="px-6 py-4 border-b border-border bg-surface-overlay/30">
+                <div className="flex items-center justify-between">
+                  <ProgressStep label="Details" number={1} active={step === 'details'} done={step !== 'details'} />
+                  <ProgressLine active={step !== 'details'} />
+                  <ProgressStep label="Approve" number={2} active={step === 'approve'} done={step === 'pay' || step === 'confirming' || step === 'success'} />
+                  <ProgressLine active={step === 'pay' || step === 'confirming' || step === 'success'} />
+                  <ProgressStep label="Pay" number={3} active={step === 'pay' || step === 'confirming'} done={step === 'success'} />
+                </div>
+              </div>
+
+              <div className="p-6">
+                {/* All step content stays exactly the same — details, approve, pay, confirming, success */}
+                {step === 'details' && (
+                  <div className="space-y-5">
+                    {/* Merchant */}
+                    <div>
+                      <label className="text-xs font-medium text-text-secondary block mb-2">Merchant Address</label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                        <input
+                          type="text"
+                          value={merchantAddress}
+                          onChange={(e) => setMerchantAddress(e.target.value)}
+                          placeholder="0x..."
+                          className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-lg text-sm text-text-primary font-mono placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Amount + Token */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-medium text-text-secondary">Amount</label>
+                        {isConnected && tokenBalance && (
+                          <button
+                            onClick={() => setAmount(tokenBalance.formatted)}
+                            className="text-[10px] text-accent hover:underline"
+                          >
+                            Max: {parseFloat(tokenBalance.formatted).toFixed(2)} {selectedToken.symbol}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="flex-1 flex items-center bg-surface border border-border rounded-lg overflow-hidden focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/30">
+                          <button onClick={() => adjustAmount(-1)} className="px-3 py-3 text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors">
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <div className="relative flex-1">
+                            <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" step="0.01" className="w-full pl-7 pr-2 py-3 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none" />
+                          </div>
+                          <button onClick={() => adjustAmount(1)} className="px-3 py-3 text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors">
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <button onClick={() => setShowTokenSelect(!showTokenSelect)} className="flex items-center gap-2 px-4 py-3 bg-surface border border-border rounded-lg hover:border-border-light transition-colors">
+                            <div className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-bold text-accent">$</div>
+                            <span className="text-sm font-medium text-text-primary">{selectedToken.symbol}</span>
+                            <ChevronDown className="w-3 h-3 text-text-muted" />
+                          </button>
+                          {showTokenSelect && (
+                            <div className="absolute right-0 top-full mt-1 w-48 card border border-border-light shadow-xl z-10 py-1">
+                              {TOKENS.map((token) => (
+                                <button key={token.symbol} onClick={() => { setSelectedToken(token); setShowTokenSelect(false); }} className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-overlay transition-colors ${selectedToken.symbol === token.symbol ? 'bg-accent/5' : ''}`}>
+                                  <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-bold text-accent">$</div>
+                                  <div>
+                                    <div className="text-sm font-medium text-text-primary">{token.symbol}</div>
+                                    <div className="text-[10px] text-text-muted">{token.name}</div>
+                                  </div>
+                                  {selectedToken.symbol === token.symbol && <CheckCircle2 className="w-3.5 h-3.5 text-accent ml-auto" />}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        {[5, 10, 50, 100].map((preset) => (
+                          <button key={preset} onClick={() => setAmount(preset.toString())} className="flex-1 py-1.5 rounded-md border border-border text-xs text-text-secondary hover:bg-surface-overlay hover:border-border-light transition-colors">${preset}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {amount && parseFloat(amount) > 0 && merchantAddress.length === 42 && (
+                      <div className="p-4 rounded-lg bg-surface-overlay border border-border space-y-2">
+                        <div className="flex justify-between text-xs"><span className="text-text-muted">Network</span><span className="text-text-secondary">Arc Testnet</span></div>
+                        <div className="flex justify-between text-xs"><span className="text-text-muted">Token</span><span className="text-text-secondary">{selectedToken.symbol} ({selectedToken.name})</span></div>
+                        <div className="flex justify-between text-xs pt-2 border-t border-border"><span className="text-text-muted">You pay</span><span className="text-sm font-semibold text-text-primary">{amount} {selectedToken.symbol}</span></div>
+                      </div>
+                    )}
+
+                    {error && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-danger-muted text-danger text-xs">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}
+                      </div>
+                    )}
+
+                    {!isConnected ? (
+                      <div className="p-4 rounded-lg bg-surface-overlay text-center">
+                        <Wallet className="w-5 h-5 text-text-muted mx-auto mb-2" />
+                        <p className="text-sm text-text-secondary">Connect your wallet to pay</p>
+                      </div>
+                    ) : (
+                      <button onClick={validateAndProceed} className="w-full py-3.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors">Continue</button>
+                    )}
+                  </div>
+                )}
+
+                {step === 'approve' && (
+                  <div className="space-y-5">
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-full bg-accent-muted flex items-center justify-center mx-auto mb-3"><Shield className="w-5 h-5 text-accent" /></div>
+                      <h3 className="text-sm font-semibold text-text-primary">Approve {selectedToken.symbol}</h3>
+                      <p className="text-xs text-text-muted mt-1">Allow StabL Gateway to transfer {amount} {selectedToken.symbol}</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-surface-overlay border border-border space-y-2">
+                      <div className="flex justify-between text-xs"><span className="text-text-muted">Token</span><span className="text-text-secondary">{selectedToken.symbol}</span></div>
+                      <div className="flex justify-between text-xs"><span className="text-text-muted">Spender</span><span className="text-text-secondary font-mono">PaymentPool</span></div>
+                      <div className="flex justify-between text-xs"><span className="text-text-muted">Amount</span><span className="text-text-primary font-medium">{amount} {selectedToken.symbol}</span></div>
+                    </div>
+                    {approveError && <div className="flex items-center gap-2 p-3 rounded-lg bg-danger-muted text-danger text-xs"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{approveError.message.includes('User rejected') ? 'Transaction rejected' : 'Approval failed'}</div>}
+                    <button onClick={handleApprove} disabled={isApproveSigning || isApproveConfirming} className={`w-full py-3.5 rounded-lg text-sm font-medium transition-colors ${isApproveSigning || isApproveConfirming ? 'bg-accent/30 text-accent/50 cursor-not-allowed' : 'bg-accent text-white hover:bg-accent-hover'}`}>
+                      {isApproveSigning ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Confirm in wallet...</span> : isApproveConfirming ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Approving...</span> : `Approve ${selectedToken.symbol}`}
+                    </button>
+                    <button onClick={() => { setStep('details'); resetApprove(); }} className="w-full py-2 text-xs text-text-muted hover:text-text-secondary">Back</button>
+                  </div>
+                )}
+
+                {step === 'pay' && (
+                  <div className="space-y-5">
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-full bg-accent-muted flex items-center justify-center mx-auto mb-3"><Zap className="w-5 h-5 text-accent" /></div>
+                      <h3 className="text-sm font-semibold text-text-primary">Confirm Payment</h3>
+                      <p className="text-xs text-text-muted mt-1">Send {amount} {selectedToken.symbol} to merchant</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-surface-overlay border border-border space-y-3">
+                      <div className="flex justify-between text-xs"><span className="text-text-muted">To</span><span className="text-text-secondary font-mono">{merchantAddress.slice(0, 6)}...{merchantAddress.slice(-4)}</span></div>
+                      <div className="flex justify-between text-xs"><span className="text-text-muted">Amount</span><span className="text-text-primary font-medium">{amount} {selectedToken.symbol}</span></div>
+                    </div>
+                    {paymentError && <div className="flex items-center gap-2 p-3 rounded-lg bg-danger-muted text-danger text-xs"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{paymentError.message.includes('User rejected') ? 'Transaction rejected' : 'Payment failed'}</div>}
+                    <button onClick={handlePay} disabled={isPaymentSigning} className={`w-full py-3.5 rounded-lg text-sm font-medium transition-colors ${isPaymentSigning ? 'bg-accent/30 text-accent/50 cursor-not-allowed' : 'bg-accent text-white hover:bg-accent-hover'}`}>
+                      {isPaymentSigning ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Confirm in wallet...</span> : `Pay ${amount} ${selectedToken.symbol}`}
+                    </button>
+                    <button onClick={() => { setStep('details'); resetPayment(); }} className="w-full py-2 text-xs text-text-muted hover:text-text-secondary">Back</button>
+                  </div>
+                )}
+
+                {step === 'confirming' && (
+                  <div className="py-8 text-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-accent-muted flex items-center justify-center mx-auto"><Loader2 className="w-7 h-7 text-accent animate-spin" /></div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-text-primary">Processing Payment</h3>
+                      <p className="text-xs text-text-muted mt-1">Waiting for on-chain confirmation...</p>
+                    </div>
+                    {paymentTxHash && <a href={`${EXPLORER_URL}/${paymentTxHash}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">View on explorer <ExternalLink className="w-3 h-3" /></a>}
+                  </div>
+                )}
+
+                {step === 'success' && (
+                  <div className="py-8 text-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-success-muted flex items-center justify-center mx-auto"><CheckCircle2 className="w-7 h-7 text-success" /></div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-text-primary">Payment Sent!</h3>
+                      <p className="text-xs text-text-muted mt-1">{amount} {selectedToken.symbol} sent to {merchantAddress.slice(0, 6)}...{merchantAddress.slice(-4)}</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-surface-overlay border border-border space-y-2 text-left">
+                      <div className="flex justify-between text-xs"><span className="text-text-muted">Amount</span><span className="text-success font-medium">{amount} {selectedToken.symbol}</span></div>
+                      <div className="flex justify-between text-xs"><span className="text-text-muted">Status</span><span className="text-success">Confirmed</span></div>
+                      {paymentTxHash && <div className="flex justify-between text-xs"><span className="text-text-muted">Transaction</span><a href={`${EXPLORER_URL}/${paymentTxHash}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline flex items-center gap-1">{paymentTxHash.slice(0, 8)}...{paymentTxHash.slice(-6)}<ExternalLink className="w-3 h-3" /></a></div>}
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      <button onClick={handleReset} className="flex-1 py-2.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors">Send Another</button>
+                      <a href="/payments" className="flex-1 py-2.5 rounded-lg border border-border text-sm font-medium text-text-secondary hover:bg-surface-overlay transition-colors text-center">View Payments</a>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 border-t border-border bg-surface-overlay/30 flex items-center justify-center gap-1.5">
+                <Shield className="w-3 h-3 text-text-muted" />
+                <span className="text-[10px] text-text-muted">Secured by StabL Gateway on Arc Testnet</span>
               </div>
             </div>
 
-            <div className="p-6">
-              {/* ── Details ──────────────────────────────────────────────── */}
-              {step === 'details' && (
-                <div className="space-y-5">
-                  {/* Merchant */}
-                  <div>
-                    <label className="text-xs font-medium text-text-secondary block mb-2">Merchant Address</label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                      <input
-                        type="text"
-                        value={merchantAddress}
-                        onChange={(e) => setMerchantAddress(e.target.value)}
-                        placeholder="0x..."
-                        className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-lg text-sm text-text-primary font-mono placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Amount + Token */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-medium text-text-secondary">Amount</label>
-                      {isConnected && tokenBalance && (
-                        <button
-                          onClick={() => setAmount(tokenBalance.formatted)}
-                          className="text-[10px] text-accent hover:underline"
-                        >
-                          Max: {parseFloat(tokenBalance.formatted).toFixed(2)} {selectedToken.symbol}
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      {/* Amount input with +/- buttons */}
-                      <div className="flex-1 flex items-center bg-surface border border-border rounded-lg overflow-hidden focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/30">
-                        <button
-                          onClick={() => adjustAmount(-1)}
-                          className="px-3 py-3 text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <div className="relative flex-1">
-                          <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                          <input
-                            type="number"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            placeholder="0.00"
-                            step="0.01"
-                            className="w-full pl-7 pr-2 py-3 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
-                          />
-                        </div>
-                        <button
-                          onClick={() => adjustAmount(1)}
-                          className="px-3 py-3 text-text-muted hover:text-text-secondary hover:bg-surface-overlay transition-colors"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Token selector */}
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowTokenSelect(!showTokenSelect)}
-                          className="flex items-center gap-2 px-4 py-3 bg-surface border border-border rounded-lg hover:border-border-light transition-colors"
-                        >
-                          <div className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-bold text-accent">$</div>
-                          <span className="text-sm font-medium text-text-primary">{selectedToken.symbol}</span>
-                          <ChevronDown className="w-3 h-3 text-text-muted" />
-                        </button>
-
-                        {showTokenSelect && (
-                          <div className="absolute right-0 top-full mt-1 w-48 card border border-border-light shadow-xl z-10 py-1">
-                            {TOKENS.map((token) => (
-                              <button
-                                key={token.symbol}
-                                onClick={() => {
-                                  setSelectedToken(token);
-                                  setShowTokenSelect(false);
-                                }}
-                                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-overlay transition-colors ${
-                                  selectedToken.symbol === token.symbol ? 'bg-accent/5' : ''
-                                }`}
-                              >
-                                <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-bold text-accent">$</div>
-                                <div>
-                                  <div className="text-sm font-medium text-text-primary">{token.symbol}</div>
-                                  <div className="text-[10px] text-text-muted">{token.name}</div>
-                                </div>
-                                {selectedToken.symbol === token.symbol && (
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-accent ml-auto" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {/* Quick amounts */}
-                    <div className="flex gap-2 mt-2">
-                      {[5, 10, 50, 100].map((preset) => (
-                        <button
-                          key={preset}
-                          onClick={() => setAmount(preset.toString())}
-                          className="flex-1 py-1.5 rounded-md border border-border text-xs text-text-secondary hover:bg-surface-overlay hover:border-border-light transition-colors"
-                        >
-                          ${preset}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Summary */}
-                  {amount && parseFloat(amount) > 0 && merchantAddress.length === 42 && (
-                    <div className="p-4 rounded-lg bg-surface-overlay border border-border space-y-2">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-text-muted">Network</span>
-                        <span className="text-text-secondary">Arc Testnet</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-text-muted">Protocol</span>
-                        <span className="text-text-secondary">StabL Gateway</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-text-muted">Token</span>
-                        <span className="text-text-secondary">{selectedToken.symbol} ({selectedToken.name})</span>
-                      </div>
-                      <div className="flex justify-between text-xs pt-2 border-t border-border">
-                        <span className="text-text-muted">You pay</span>
-                        <span className="text-sm font-semibold text-text-primary">{amount} {selectedToken.symbol}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {error && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-danger-muted text-danger text-xs">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      {error}
-                    </div>
-                  )}
-
-                  {!isConnected ? (
-                    <div className="p-4 rounded-lg bg-surface-overlay text-center">
-                      <Wallet className="w-5 h-5 text-text-muted mx-auto mb-2" />
-                      <p className="text-sm text-text-secondary">Connect your wallet to pay</p>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={validateAndProceed}
-                      className="w-full py-3.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors"
-                    >
-                      Continue
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* ── Approve ─────────────────────────────────────────────── */}
-              {step === 'approve' && (
-                <div className="space-y-5">
-                  <div className="text-center">
-                    <div className="w-12 h-12 rounded-full bg-accent-muted flex items-center justify-center mx-auto mb-3">
-                      <Shield className="w-5 h-5 text-accent" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-text-primary">Approve {selectedToken.symbol}</h3>
-                    <p className="text-xs text-text-muted mt-1">
-                      Allow StabL Gateway to transfer {amount} {selectedToken.symbol}
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-lg bg-surface-overlay border border-border space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-text-muted">Token</span>
-                      <span className="text-text-secondary">{selectedToken.symbol}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-text-muted">Spender</span>
-                      <span className="text-text-secondary font-mono">PaymentPool</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-text-muted">Amount</span>
-                      <span className="text-text-primary font-medium">{amount} {selectedToken.symbol}</span>
-                    </div>
-                  </div>
-
-                  {approveError && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-danger-muted text-danger text-xs">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      {approveError.message.includes('User rejected') ? 'Transaction rejected' : 'Approval failed'}
-                    </div>
-                  )}
-
-                  <button
-                    onClick={handleApprove}
-                    disabled={isApproveSigning || isApproveConfirming}
-                    className={`w-full py-3.5 rounded-lg text-sm font-medium transition-colors ${
-                      isApproveSigning || isApproveConfirming
-                        ? 'bg-accent/30 text-accent/50 cursor-not-allowed'
-                        : 'bg-accent text-white hover:bg-accent-hover'
-                    }`}
-                  >
-                    {isApproveSigning ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" /> Confirm in wallet...
-                      </span>
-                    ) : isApproveConfirming ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" /> Approving...
-                      </span>
-                    ) : (
-                      `Approve ${selectedToken.symbol}`
-                    )}
-                  </button>
-                  <button onClick={() => { setStep('details'); resetApprove(); }} className="w-full py-2 text-xs text-text-muted hover:text-text-secondary">Back</button>
-                </div>
-              )}
-
-              {/* ── Pay ─────────────────────────────────────────────────── */}
-              {step === 'pay' && (
-                <div className="space-y-5">
-                  <div className="text-center">
-                    <div className="w-12 h-12 rounded-full bg-accent-muted flex items-center justify-center mx-auto mb-3">
-                      <Zap className="w-5 h-5 text-accent" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-text-primary">Confirm Payment</h3>
-                    <p className="text-xs text-text-muted mt-1">Send {amount} {selectedToken.symbol} to merchant</p>
-                  </div>
-
-                  <div className="p-4 rounded-lg bg-surface-overlay border border-border space-y-3">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-text-muted">To</span>
-                      <span className="text-text-secondary font-mono">{merchantAddress.slice(0, 6)}...{merchantAddress.slice(-4)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-text-muted">Amount</span>
-                      <span className="text-text-primary font-medium">{amount} {selectedToken.symbol}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-text-muted">Via</span>
-                      <span className="text-text-secondary">PaymentPool → BatchSettler</span>
-                    </div>
-                  </div>
-
-                  {paymentError && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-danger-muted text-danger text-xs">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      {paymentError.message.includes('User rejected') ? 'Transaction rejected' : 'Payment failed'}
-                    </div>
-                  )}
-
-                  <button
-                    onClick={handlePay}
-                    disabled={isPaymentSigning}
-                    className={`w-full py-3.5 rounded-lg text-sm font-medium transition-colors ${
-                      isPaymentSigning
-                        ? 'bg-accent/30 text-accent/50 cursor-not-allowed'
-                        : 'bg-accent text-white hover:bg-accent-hover'
-                    }`}
-                  >
-                    {isPaymentSigning ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" /> Confirm in wallet...
-                      </span>
-                    ) : (
-                      `Pay ${amount} ${selectedToken.symbol}`
-                    )}
-                  </button>
-                  <button onClick={() => { setStep('details'); resetPayment(); }} className="w-full py-2 text-xs text-text-muted hover:text-text-secondary">Back</button>
-                </div>
-              )}
-
-              {/* ── Confirming ──────────────────────────────────────────── */}
-              {step === 'confirming' && (
-                <div className="py-8 text-center space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-accent-muted flex items-center justify-center mx-auto">
-                    <Loader2 className="w-7 h-7 text-accent animate-spin" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-text-primary">Processing Payment</h3>
-                    <p className="text-xs text-text-muted mt-1">Waiting for on-chain confirmation...</p>
-                  </div>
-                  {paymentTxHash && (
-                    <a href={`${EXPLORER_URL}/${paymentTxHash}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
-                      View on explorer <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
-              )}
-
-              {/* ── Success ─────────────────────────────────────────────── */}
-              {step === 'success' && (
-                <div className="py-8 text-center space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-success-muted flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-7 h-7 text-success" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-text-primary">Payment Sent!</h3>
-                    <p className="text-xs text-text-muted mt-1">{amount} {selectedToken.symbol} sent to {merchantAddress.slice(0, 6)}...{merchantAddress.slice(-4)}</p>
-                  </div>
-
-                  <div className="p-4 rounded-lg bg-surface-overlay border border-border space-y-2 text-left">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-text-muted">Amount</span>
-                      <span className="text-success font-medium">{amount} {selectedToken.symbol}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-text-muted">Status</span>
-                      <span className="text-success">Confirmed</span>
-                    </div>
-                    {paymentTxHash && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-text-muted">Transaction</span>
-                        <a href={`${EXPLORER_URL}/${paymentTxHash}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline flex items-center gap-1">
-                          {paymentTxHash.slice(0, 8)}...{paymentTxHash.slice(-6)}
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3 pt-2">
-                    <button onClick={handleReset} className="flex-1 py-2.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors">
-                      Send Another
-                    </button>
-                    <a href="/payments" className="flex-1 py-2.5 rounded-lg border border-border text-sm font-medium text-text-secondary hover:bg-surface-overlay transition-colors text-center">
-                      View Payments
-                    </a>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-3 border-t border-border bg-surface-overlay/30 flex items-center justify-center gap-1.5">
-              <Shield className="w-3 h-3 text-text-muted" />
-              <span className="text-[10px] text-text-muted">Secured by StabL Gateway on Arc Testnet</span>
+            {/* Recent Payments — directly below payment widget */}
+            <div className="card">
+              <div className="px-6 py-4 border-b border-border">
+                <h2 className="text-sm font-semibold text-text-primary">Your Recent Payments</h2>
+              </div>
+              <RecentPayments />
             </div>
           </div>
 
@@ -597,16 +445,6 @@ export default function PayPage() {
             </div>
 
             <div className="card p-5">
-              <h3 className="text-sm font-semibold text-text-primary mb-3">Why StabL?</h3>
-              <div className="space-y-3">
-                <TrustItem icon="🔒" title="Secure" description="Audited smart contracts on-chain" />
-                <TrustItem icon="⚡" title="Fast" description="Settlements in under 5 seconds" />
-                <TrustItem icon="💰" title="Low fees" description="Batch settlements reduce gas costs" />
-                <TrustItem icon="🌐" title="Multi-chain" description="Accept payments from any EVM chain" />
-              </div>
-            </div>
-
-            <div className="card p-5">
               <h3 className="text-sm font-semibold text-text-primary mb-3">Accepted Tokens</h3>
               <div className="space-y-2">
                 {TOKENS.map((token) => (
@@ -618,20 +456,7 @@ export default function PayPage() {
                 ))}
               </div>
             </div>
-          </div>
-        </div>
-        {/* Recent Payments + Gas Info */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6">
-          {/* Recent Payments — 3 cols */}
-          <div className="lg:col-span-3 card">
-            <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-sm font-semibold text-text-primary">Your Recent Payments</h2>
-            </div>
-            <RecentPayments />
-          </div>
 
-          {/* Gas Savings — 2 cols */}
-          <div className="lg:col-span-2 space-y-4">
             <div className="card p-5">
               <h3 className="text-sm font-semibold text-text-primary mb-4">Gas Savings</h3>
               <div className="space-y-4">
@@ -640,30 +465,24 @@ export default function PayPage() {
                     <span className="text-xs text-text-muted">Individual settlement</span>
                     <span className="text-xs text-text-secondary">~$0.45</span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-surface-overlay">
-                    <div className="w-full h-2 rounded-full bg-danger/40" />
-                  </div>
+                  <div className="w-full h-2 rounded-full bg-surface-overlay"><div className="w-full h-2 rounded-full bg-danger/40" /></div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs text-text-muted">Batched (5 payments)</span>
                     <span className="text-xs text-text-secondary">~$0.12</span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-surface-overlay">
-                    <div className="w-[27%] h-2 rounded-full bg-accent" />
-                  </div>
+                  <div className="w-full h-2 rounded-full bg-surface-overlay"><div className="w-[27%] h-2 rounded-full bg-accent" /></div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs text-text-muted">Batched (20 payments)</span>
                     <span className="text-xs text-text-secondary">~$0.03</span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-surface-overlay">
-                    <div className="w-[7%] h-2 rounded-full bg-success" />
-                  </div>
+                  <div className="w-full h-2 rounded-full bg-surface-overlay"><div className="w-[7%] h-2 rounded-full bg-success" /></div>
                 </div>
                 <p className="text-[10px] text-text-muted pt-2 border-t border-border">
-                  Estimated per-transaction cost based on batch size. Larger batches = more savings.
+                  Estimated per-transaction cost. Larger batches = more savings.
                 </p>
               </div>
             </div>
@@ -671,18 +490,9 @@ export default function PayPage() {
             <div className="card p-5">
               <h3 className="text-sm font-semibold text-text-primary mb-3">Transaction Fees</h3>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-muted">Protocol fee</span>
-                  <span className="text-xs font-medium text-success">Free (testnet)</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-muted">Network gas</span>
-                  <span className="text-xs text-text-secondary">Paid in USDC</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-muted">Cross-token swap</span>
-                  <span className="text-xs text-text-secondary">Uniswap V4 rate</span>
-                </div>
+                <div className="flex items-center justify-between"><span className="text-xs text-text-muted">Protocol fee</span><span className="text-xs font-medium text-success">Free (testnet)</span></div>
+                <div className="flex items-center justify-between"><span className="text-xs text-text-muted">Network gas</span><span className="text-xs text-text-secondary">Paid in USDC</span></div>
+                <div className="flex items-center justify-between"><span className="text-xs text-text-muted">Cross-token swap</span><span className="text-xs text-text-secondary">Uniswap V4 rate</span></div>
               </div>
             </div>
           </div>
