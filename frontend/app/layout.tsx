@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import '../styles/globals.css';
 import Providers from '../components/Providers';
-import AppShell from '../components/AppShell';
+import AppShellWrapper from '../components/AppShellWrapper';
 import OnboardingModal from '../components/OnboardingModal';
 
 export const metadata: Metadata = {
@@ -18,9 +18,9 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body>
         <Providers>
-          <AppShell>
+          <AppShellWrapper>
             {children}
-          </AppShell>
+          </AppShellWrapper>
           <OnboardingModal />
         </Providers>
       </body>
