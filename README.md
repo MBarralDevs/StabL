@@ -1,118 +1,232 @@
-# StabL Gateway
+<p align="center">
+  <img src="frontend/public/logo.png" alt="StabL" width="100" height="100" />
+</p>
 
-**Universal Stablecoin Payment Gateway with Intent-Based Settlement**
+<h1 align="center">StabL Gateway</h1>
 
-StabL Gateway is a production-ready payment infrastructure that enables merchants to accept stablecoins from any blockchain while optimizing settlement costs through intelligent batching and instant liquidity provision.
+<p align="center">
+  <strong>Intent-based stablecoin payment gateway with batched settlement</strong>
+</p>
 
-Built for **HackMoney 2026** | Integrating **Yellow Network**, **Li.Fi**, **Arc Testnet**, and **Uniswap**
+<p align="center">
+  <a href="https://stabl-arc.vercel.app">Live Demo</a> •
+  <a href="https://testnet.arcscan.app/address/0xf929d461B266a671A4AE6dC731cB7107b57946B2">Contracts on ArcScan</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#getting-started">Getting Started</a>
+</p>
 
----
-
-## 🎯 Problem
-
-Current stablecoin payment systems force merchants to choose between:
-
-- **Speed** → Pay high gas fees for instant settlement
-- **Cost** → Wait indefinitely for batch settlement savings
-
-This creates a poor UX where merchants either overpay or lose liquidity.
-
-## 💡 Solution
-
-StabL Gateway decouples payment receipt from settlement using a **carpool model**:
-
-1. **Instant Credit** → Merchants receive liquidity immediately via Yellow Network state channels
-2. **Intent Declaration** → Merchants specify their settlement preferences (speed vs. cost)
-3. **Smart Batching** → Backend matches compatible settlements to minimize gas costs
-4. **Cross-Chain Routing** → Li.Fi enables settlement to any chain in merchant's preferred token
-
-**Result:** Merchants get instant liquidity _and_ optimized settlement costs.
+<p align="center">
+  <img src="https://img.shields.io/badge/Solidity-0.8.30-blue" />
+  <img src="https://img.shields.io/badge/Next.js-14-black" />
+  <img src="https://img.shields.io/badge/Arc_Testnet-Live-green" />
+  <img src="https://img.shields.io/badge/CCTP_V2-Integrated-purple" />
+  <img src="https://img.shields.io/badge/Uniswap_V4-Hook-pink" />
+</p>
 
 ---
 
-## 🏗️ Architecture
+## What is StabL?
+
+StabL is a payment gateway that lets merchants accept stablecoin payments from any blockchain while reducing settlement costs through intelligent batching — like a carpool for transactions.
+
+**The problem:** Stablecoin payment systems force merchants to choose between speed (pay high gas per transaction) and cost (wait indefinitely for cheaper settlement).
+
+**The solution:** StabL decouples payment receipt from settlement. Merchants declare their settlement preferences (speed vs. cost), and the protocol batches compatible settlements to minimize gas — the more merchants use StabL, the cheaper it gets for everyone.
+
+### Key Features
+
+- **Merchant-controlled settlement** — Choose Immediate, Standard, or Deferred settlement. Your funds, your rules.
+- **Batched settlement** — Multiple payments settle in one transaction via BatchSettler, sharing gas costs across merchants.
+- **Cross-chain payments** — Accept USDC from Ethereum, Base, and more via Circle's CCTP V2.
+- **Cross-token swaps** — Receive USDC, settle in EURC. Powered by Uniswap V4 Hooks.
+- **Full merchant dashboard** — Real-time payment tracking, settlement history, and intent management.
+- **Non-custodial** — All funds are held in audited smart contracts. No intermediary custody.
+
+---
+
+## Live Demo
+
+**Frontend:** [stabl-arc.vercel.app](https://stabl-arc.vercel.app)
+
+**Backend API:** [stabl-production.up.railway.app](https://stabl-production.up.railway.app/health)
+
+**Deployed Contracts (Arc Testnet — verified on [ArcScan](https://testnet.arcscan.app)):**
+
+| Contract     | Address                                                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| PaymentPool  | [`0xf929d461B266a671A4AE6dC731cB7107b57946B2`](https://testnet.arcscan.app/address/0xf929d461B266a671A4AE6dC731cB7107b57946B2) |
+| IntentVault  | [`0x992f46a9Da4458243a05A884D4bD68A851eA1942`](https://testnet.arcscan.app/address/0x992f46a9Da4458243a05A884D4bD68A851eA1942) |
+| BatchSettler | [`0x63626B6668BABc18c35e55a1982Ff8aD2C816DA9`](https://testnet.arcscan.app/address/0x63626B6668BABc18c35e55a1982Ff8aD2C816DA9) |
+| CCTPReceiver | [`0x3ea746C6aC0E3D7E38d83d43bF979451DAbFd490`](https://testnet.arcscan.app/address/0x3ea746C6aC0E3D7E38d83d43bF979451DAbFd490) |
+
+---
+
+## Architecture
 
 ```
-┌─────────────┐
-│   Customer  │ Pays with any stablecoin, any chain
-└──────┬──────┘
-       │ Li.Fi routes payment
-       ▼
-┌─────────────────────────────────────────────┐
-│          Arc Testnet (Gas = USDC)           │
-│  ┌─────────────────────────────────────┐   │
-│  │      PaymentPool Contract           │   │
-│  │  (Receives & tracks balances)       │   │
-│  └────────────┬────────────────────────┘   │
-└───────────────┼─────────────────────────────┘
-                │ PaymentReceived event
-                ▼
-┌─────────────────────────────────────────────┐
-│           Backend (TypeScript)              │
-│                                             │
-│  ┌──────────────────────────────────────┐  │
-│  │  1. Yellow Network Integration       │  │
-│  │     → Instant off-chain credit       │  │
-│  │                                      │  │
-│  │  2. PostgreSQL Database              │  │
-│  │     → Audit trail & persistence      │  │
-│  │                                      │  │
-│  │  3. Intent Checker                   │  │
-│  │     → Evaluates settlement triggers  │  │
-│  │                                      │  │
-│  │  4. Batch Optimizer                  │  │
-│  │     → Groups compatible settlements  │  │
-│  │                                      │  │
-│  │  5. Li.Fi Router                     │  │
-│  │     → Cross-chain settlement quotes  │  │
-│  └──────────────────────────────────────┘  │
-└─────────────────┬───────────────────────────┘
-                  │ Batch settlement transaction
-                  ▼
-┌─────────────────────────────────────────────┐
-│        BatchSettler Contract (Arc)          │
-│   → Executes optimized batch settlements    │
-│   → Distributes funds per merchant intents  │
-└─────────────────────────────────────────────┘
+                    ┌──────────────────┐
+                    │    Customer      │
+                    │  (Any Chain)     │
+                    └────────┬─────────┘
+                             │
+              ┌──────────────┴──────────────┐
+              │                             │
+              ▼                             ▼
+    ┌─────────────────┐          ┌─────────────────┐
+    │   Direct (Arc)  │          │    CCTP V2       │
+    │  USDC Payment   │          │  Cross-chain     │
+    └────────┬────────┘          └────────┬────────┘
+              │                            │
+              ▼                            ▼
+    ┌──────────────────────────────────────────────┐
+    │             PaymentPool Contract             │
+    │     Receives payments, tracks balances        │
+    │         Emits PaymentReceived event           │
+    └──────────────────────┬───────────────────────┘
+                           │ Event (WebSocket)
+                           ▼
+    ┌──────────────────────────────────────────────┐
+    │              Backend Pipeline                 │
+    │                                              │
+    │  ┌──────────┐  ┌──────────┐  ┌───────────┐  │
+    │  │ Payment  │→ │ Intent   │→ │  Batch    │  │
+    │  │ Consumer │  │ Checker  │  │ Executor  │  │
+    │  └──────────┘  └──────────┘  └───────────┘  │
+    │       ↓              ↓             ↓         │
+    │   PostgreSQL    IntentVault   BatchSettler    │
+    │    (Neon)       (on-chain)    (on-chain)     │
+    │                                              │
+    │  Connected via Redis Streams (Upstash)       │
+    └──────────────────────┬───────────────────────┘
+                           │
+                           ▼
+    ┌──────────────────────────────────────────────┐
+    │            BatchSettler Contract              │
+    │   Atomic batch settlement on-chain            │
+    │   Routes cross-token via Uniswap V4 Hook     │
+    │   Sends funds directly to merchant wallet     │
+    └──────────────────────────────────────────────┘
 ```
 
-### Key Components
+### How Settlement Works
 
-**Smart Contracts (Solidity):**
+1. **Customer pays** — sends USDC to PaymentPool (directly on Arc, or cross-chain via CCTP V2)
+2. **Event detected** — backend WebSocket listener picks up `PaymentReceived` event
+3. **Database recorded** — payment persisted to PostgreSQL via Prisma
+4. **Intent checked** — backend reads merchant's on-chain intent from IntentVault:
+   - **Immediate** → settle now
+   - **Standard** → wait N seconds for batch partners
+   - **Deferred** → wait until balance hits threshold
+5. **Batch settled** — BatchSettler executes atomic on-chain settlement, routing through V4 Hook if cross-token swap is needed
+6. **Merchant receives funds** — USDC (or target token) transferred to merchant wallet
 
-- `PaymentPool.sol` - Receives payments, tracks merchant balances
-- `IntentVault.sol` - Stores merchant settlement preferences on-chain
-- `BatchSettler.sol` - Executes optimized batch settlements atomically
+### Settlement Intents
 
-**Backend (TypeScript):**
-
-- **Event-Driven Architecture** - Redis Streams for reliable message processing
-- **Database Layer** - PostgreSQL + Prisma for payment lifecycle tracking
-- **Yellow Network Integration** - Instant liquidity via state channels (hybrid demo mode)
-- **Li.Fi Integration** - Real API calls for cross-chain routing quotes
-- **Arc Blockchain Listener** - WebSocket connection for real-time events
-
-**Frontend (Next.js):**
-
-- Real-time payment dashboard
-- Live statistics and settlement tracking
-- Integration status monitoring
+| Intent        | Behavior                                 | Gas Cost | Best For                  |
+| ------------- | ---------------------------------------- | -------- | ------------------------- |
+| **Immediate** | Every payment settles instantly          | Highest  | Speed-sensitive merchants |
+| **Standard**  | Waits up to N seconds for batch partners | Medium   | Balanced speed/cost       |
+| **Deferred**  | Waits until balance reaches threshold    | Lowest   | High-volume merchants     |
 
 ---
 
-## 🚀 Getting Started
+## Tech Stack
+
+### Smart Contracts
+
+- **Solidity 0.8.30** with Foundry
+- **OpenZeppelin** — SafeERC20, Ownable, Pausable, ReentrancyGuard
+- **Uniswap V4** — PaymentSettlementHook for cross-token swaps
+- **170+ Foundry tests** including fuzz testing
+
+### Backend
+
+- **TypeScript** with Express
+- **ethers.js v6** — blockchain interactions
+- **Redis Streams** (Upstash) — event-driven pipeline
+- **PostgreSQL** (Neon) + Prisma ORM
+- **WebSocket** — real-time Arc event listening
+- **CCTP V2** — cross-chain USDC relay service
+- **Li.Fi SDK** — fallback for non-USDC routing
+- **119 Vitest tests**
+
+### Frontend
+
+- **Next.js 14** (App Router)
+- **Tailwind CSS** — dark forest green theme
+- **RainbowKit + wagmi** — wallet connection
+- **recharts** — volume charts
+- **tsparticles** — landing page animations
+
+### Infrastructure
+
+- **Vercel** — frontend hosting
+- **Railway** — backend hosting (full pipeline)
+- **Neon** — managed PostgreSQL
+- **Upstash** — managed Redis
+- **Arc Testnet** — EVM chain with gas paid in USDC
+
+---
+
+## Project Structure
+
+```
+StablecoinGateway/
+├── contracts/                 # Foundry project
+│   ├── src/
+│   │   ├── PaymentPool.sol        # Receives payments, tracks balances
+│   │   ├── IntentVault.sol        # On-chain settlement preferences
+│   │   ├── BatchSettler.sol       # Atomic batch settlement
+│   │   ├── CCTPReceiver.sol       # Cross-chain USDC receiver
+│   │   └── PaymentSettlementHook.sol  # Uniswap V4 Hook
+│   ├── test/                  # 170+ tests with fuzz testing
+│   └── script/                # Deploy + test flow scripts
+│
+├── backend/                   # TypeScript backend
+│   ├── src/
+│   │   ├── index.ts               # Main orchestrator + API
+│   │   ├── api/                   # REST API routes
+│   │   ├── listeners/             # Arc + CCTP event listeners
+│   │   ├── consumers/             # Redis Stream consumers
+│   │   ├── services/              # CCTP relayer, Li.Fi, database
+│   │   └── config/                # Contracts, Redis, env
+│   └── prisma/                # Database schema
+│
+└── frontend/                  # Next.js dashboard
+    ├── app/
+    │   ├── page.tsx               # Landing page (animated)
+    │   ├── overview/              # Dashboard with stats + charts
+    │   ├── pay/                   # Checkout-style payment widget
+    │   ├── payments/              # Transaction history
+    │   ├── settlements/           # Batch settlement history
+    │   ├── cctp/                  # Cross-chain status
+    │   ├── settings/              # Intent management
+    │   └── about/                 # Product info
+    ├── components/            # Sidebar, Toast, Skeleton, etc.
+    └── lib/                   # Wallet config (Arc chain)
+```
+
+---
+
+## Getting Started
 
 ### Prerequisites
 
-```bash
-# Required
 - Node.js 18+
-- Docker & Docker Compose
-- Foundry (for smart contracts)
+- Foundry (`curl -L https://foundry.paradigm.xyz | bash`)
+- MetaMask with Arc Testnet configured
 
-# Get Arc testnet USDC
-Visit Arc testnet faucet to get USDC for testing
-```
+### Arc Testnet Setup
+
+Add to MetaMask:
+
+| Field        | Value                             |
+| ------------ | --------------------------------- |
+| Network Name | Arc Testnet                       |
+| RPC URL      | `https://rpc.testnet.arc.network` |
+| Chain ID     | `5042002`                         |
+| Currency     | `ETH`                             |
+| Explorer     | `https://testnet.arcscan.app`     |
 
 ### 1. Clone & Install
 
@@ -120,282 +234,64 @@ Visit Arc testnet faucet to get USDC for testing
 git clone https://github.com/MBarralDevs/StabL
 cd StablecoinGateway
 
-# Install contract dependencies
-cd contracts
-forge install
+# Contracts
+cd contracts && forge install && cd ..
 
-# Install backend dependencies
-cd ../backend
-npm install
+# Backend
+cd backend && npm install && cd ..
 
-# Install frontend dependencies
-cd ../frontend
-npm install
+# Frontend
+cd frontend && npm install && cd ..
 ```
 
-### 2. Setup Environment Variables
+### 2. Environment Setup
 
-**Backend (`backend/.env`):**
+**`backend/.env`:**
 
 ```bash
-# Arc Testnet
 ARC_RPC_URL=https://rpc.testnet.arc.network
 ARC_WSS_URL=wss://rpc.testnet.arc.network
-DEPLOYER_PRIVATE_KEY=0x...
-
-# Deployed Contracts (after deployment)
-PAYMENT_POOL_ADDRESS=0x5a100C9c5B7586cf014ACd65A7EEd592589bc3c4
-INTENT_VAULT_ADDRESS=0xCb3016AaeAF3C956960134aF241468701D68E1C4
-BATCH_SETTLER_ADDRESS=0x33A7aE97Cf4ee8747Fde9B13e096A86500F4C6E7
-
-# Infrastructure
-REDIS_URL=redis://localhost:6379
-DATABASE_URL=postgresql://user:password@localhost:5432/stabl_gateway
-
-# Li.Fi
+DEPLOYER_PRIVATE_KEY=<your-private-key>
+PAYMENT_POOL_ADDRESS=0xf929d461B266a671A4AE6dC731cB7107b57946B2
+INTENT_VAULT_ADDRESS=0x992f46a9Da4458243a05A884D4bD68A851eA1942
+BATCH_SETTLER_ADDRESS=0x63626B6668BABc18c35e55a1982Ff8aD2C816DA9
+CCTP_RECEIVER_ADDRESS=0x3ea746C6aC0E3D7E38d83d43bF979451DAbFd490
+REDIS_URL=<your-upstash-url>
+DATABASE_URL=<your-neon-url>?connection_limit=5&pool_timeout=30
 LIFI_INTEGRATOR=StabL-Gateway
-
-# Yellow Network (optional - falls back to demo mode)
-YELLOW_WSS_URL=wss://clearnet-sandbox.yellow.com/ws
-PRIVATE_KEY=0x...
 ```
 
-### 3. Start Infrastructure
+### 3. Run Locally
 
 ```bash
-# Start Redis + PostgreSQL
-cd backend
-docker-compose up -d
+# Terminal 1: Backend (event listener + consumers + API)
+cd backend && npm run dev
 
-# Run database migrations
-npx prisma migrate deploy
+# Terminal 2: Frontend
+cd frontend && npm run dev
 ```
-
-### 4. Deploy Contracts (if needed)
-
-```bash
-cd contracts
-
-# Deploy to Arc testnet
-forge script script/Deploy.s.sol:Deploy \
-  --rpc-url $ARC_RPC_URL \
-  --private-key $DEPLOYER_PRIVATE_KEY \
-  --broadcast
-
-# Copy deployed addresses to backend/.env
-```
-
-### 5. Run the Stack
-
-```bash
-# Terminal 1: Backend (main process)
-cd backend
-npm run dev
-
-# Terminal 2: Backend API (for frontend)
-cd backend
-npm run api
-
-# Terminal 3: Frontend
-cd frontend
-npm run dev
-```
-
-**Access:**
 
 - Frontend: http://localhost:3001
-- Backend API: http://localhost:3002
-- Backend Main: http://localhost:3000/health
+- Backend API: http://localhost:3000/api/payments
+- Health check: http://localhost:3000/health
 
----
-
-## 🧪 Testing the Flow
-
-### Send a Test Payment
+### 4. Send a Test Payment
 
 ```bash
 cd contracts
-
-# Set merchant intent + send payment
-forge script script/TestPaymentFlow.s.sol \
-  --rpc-url $ARC_RPC_URL \
-  --private-key $DEPLOYER_PRIVATE_KEY \
+forge script script/TestPaymentFlow.s.sol:TestPaymentFlow \
+  --rpc-url https://rpc.testnet.arc.network \
+  --private-key <your-key> \
   --broadcast
 ```
 
-**What happens:**
-
-1. ✅ Payment lands in `PaymentPool`
-2. ✅ Backend detects `PaymentReceived` event
-3. ✅ Merchant credited instantly via Yellow Network (demo mode)
-4. ✅ Payment recorded in PostgreSQL
-5. ✅ Intent checker evaluates settlement threshold
-6. ✅ Batch settlement executed on-chain
-7. ✅ Li.Fi provides real cross-chain routing quote
-8. ✅ Frontend updates with live data
-
-### Verify Settlement
-
-```bash
-forge script script/VerifySettlement.s.sol \
-  --rpc-url $ARC_RPC_URL
-```
+Or use the Pay page at http://localhost:3001/pay with MetaMask.
 
 ---
 
-## 🔑 Key Features
+## Testing
 
-### ✨ Instant Liquidity (Yellow Network)
-
-Merchants receive credit in **<1 second** via Yellow Network's state channels before on-chain settlement completes.
-
-**Current Implementation:**
-
-- Hybrid approach: Real WebSocket connection to Yellow sandbox
-- Attempts real `transfer` RPC method
-- Falls back to demo mode (simulated state channel behavior)
-- Production-ready architecture, waiting for funded sandbox
-
-**Production Flow:**
-
-```typescript
-// Real Yellow Network transfer
-await yellowClient.transfer({
-  destination: merchantAddress,
-  allocations: [{ asset: "usdc", amount: "10.0" }],
-});
-```
-
-### 🌉 Cross-Chain Settlement (Li.Fi)
-
-Get **real routing quotes** from Li.Fi's production API without needing funds.
-
-**Example Output:**
-
-```
-🌉 Getting REAL Li.Fi quote...
-   From: Chain 137 (Polygon)
-   To: Chain 42161 (Arbitrum)
-   Amount: 10.0 USDC
-   ✅ REAL quote received from Li.Fi!
-      Route: Eco
-      Bridge: eco
-      Estimated output: 9.94 USDC
-      Estimated time: ~0 minutes
-      Gas cost (USD): ~$0.0237
-```
-
-**Implementation:**
-
-```typescript
-// Real Li.Fi SDK integration
-const quote = await getQuote({
-  fromChain: 137,
-  toChain: 42161,
-  fromToken: USDC_POLYGON,
-  toToken: USDC_ARBITRUM,
-  fromAmount: "10000000", // 10 USDC
-});
-```
-
-### 🎯 Intent-Based Settlement
-
-Merchants declare preferences on-chain via `IntentVault`:
-
-```solidity
-enum SettlementSpeed {
-    IMMEDIATE,  // Settle now (higher gas, instant funds)
-    STANDARD,   // Wait up to maxWaitTimeSeconds for batch partners
-    DEFERRED    // Wait until balance >= minBatchAmount (maximum savings)
-}
-```
-
-**Example:**
-
-```solidity
-// Set DEFERRED intent: wait for 100 USDC before settling
-intentVault.setIntent(
-    SettlementSpeed.DEFERRED,
-    100e6,        // minBatchAmount
-    0,            // maxWaitTimeSeconds (unused)
-    usdcAddress   // targetToken
-);
-```
-
-### ⚡ Gas Optimization via Batching
-
-Single transaction settles multiple merchants:
-
-```solidity
-struct Settlement {
-    address merchant;
-    address token;
-    uint256 amount;
-    address recipient;
-}
-
-// Settle 10 merchants in one transaction
-batchSettler.executeBatch(batchId, settlements[], totalGasSaved);
-```
-
-**Savings:** ~60-80% gas reduction compared to individual settlements.
-
----
-
-## 📊 Technical Stack
-
-### Smart Contracts
-
-- **Solidity ^0.8.30** - Modern features + gas optimizations
-- **Foundry** - Fast testing, fuzzing, deployment
-- **OpenZeppelin** - Battle-tested libraries (SafeERC20, Ownable)
-
-### Backend
-
-- **TypeScript** - Type-safe development
-- **ethers.js v6** - Blockchain interactions
-- **Redis Streams** - Event-driven architecture with persistence
-- **PostgreSQL + Prisma** - Relational database with type-safe ORM
-- **WebSocket** - Real-time Arc blockchain event listening
-
-### Frontend
-
-- **Next.js 14** - React framework with App Router
-- **Tailwind CSS** - Utility-first styling
-- **Lucide React** - Beautiful icons
-- **TypeScript** - Full-stack type safety
-
-### Infrastructure
-
-- **Docker Compose** - Local development environment
-- **Arc Testnet** - EVM chain with gas paid in USDC
-- **Vercel** - Deployment target (frontend)
-- **Upstash/Neon** - Production Redis/PostgreSQL (swap .env)
-
----
-
-## 🔐 Security Considerations
-
-### Smart Contracts
-
-✅ **Atomic Settlements** - Entire batch succeeds or reverts (no partial failures)  
-✅ **Access Control** - Only authorized `BatchSettler` can withdraw from pool  
-✅ **Intent Validation** - Merchants must have on-chain intent to be settled  
-✅ **SafeERC20** - Handles non-standard token implementations  
-✅ **Fuzz Testing** - Foundry fuzzing for edge case detection
-
-### Backend
-
-✅ **Event Replay Protection** - Database tracks processed payment IDs  
-✅ **Redis Consumer Groups** - Exactly-once message processing  
-✅ **Graceful Shutdown** - Completes in-flight transactions before stopping  
-✅ **Error Boundaries** - Yellow/Li.Fi failures don't crash system
-
----
-
-## 🧪 Testing
-
-### Smart Contracts
+### Smart Contracts (170+ tests)
 
 ```bash
 cd contracts
@@ -403,163 +299,91 @@ cd contracts
 # Run all tests
 forge test
 
-# Run with gas reporting
+# With gas report
 forge test --gas-report
 
-# Run specific test file
+# Specific file
 forge test --match-path test/BatchSettler.t.sol
 
-# Fuzz testing (Foundry runs 256 random inputs per fuzz test)
-forge test --match-test testFuzz
+# Coverage
+forge coverage
 ```
 
-**Test Coverage:**
-
-- `PaymentPool.t.sol` - 15 unit tests + 4 fuzz tests
-- `IntentVault.t.sol` - 12 unit tests + 3 fuzz tests
-- `BatchSettler.t.sol` - 18 unit tests + 3 fuzz tests
-
-### Backend Integration Tests
+### Backend (119 tests)
 
 ```bash
 cd backend
-
-# Send test payment and verify full flow
-cd ../contracts
-forge script script/TestPaymentFlow.s.sol \
-  --rpc-url arc --broadcast
+npm test
 ```
 
----
+Test suites cover:
 
-## 🎓 Key Learnings
-
-### What Worked Well
-
-✅ **Event-Driven Architecture** - Redis Streams provide durability + simplicity  
-✅ **Hybrid Integration Approach** - Real APIs where possible, intelligent fallbacks  
-✅ **TypeScript End-to-End** - Type safety across contracts, backend, frontend  
-✅ **Foundry Testing** - Fuzz tests caught edge cases we missed
-
-### Production Considerations
-
-- **Yellow Network:** Requires funded custody deposit → resize to unified balance
-- **Li.Fi:** Free tier sufficient for demo, paid tier for production volume
-- **Gas Estimation:** Real batching savings depend on network congestion
-- **Intent Expiry:** Add TTL to prevent stale intents
+- CCTP V2 configuration and relay state machine
+- Payment processing and deduplication
+- Intent threshold evaluation (all 3 speeds)
+- Batch settlement execution and error handling
 
 ---
 
-## 📝 Project Structure
+## Security
 
-```
-StablecoinGateway/
-├── contracts/              # Foundry project
-│   ├── src/
-│   │   ├── PaymentPool.sol
-│   │   ├── IntentVault.sol
-│   │   └── BatchSettler.sol
-│   ├── test/              # Comprehensive test suite
-│   └── script/            # Deployment & testing scripts
-│
-├── backend/               # TypeScript backend
-│   ├── src/
-│   │   ├── index.ts       # Main orchestrator
-│   │   ├── api/           # REST API for frontend
-│   │   ├── listeners/     # Blockchain event listeners
-│   │   ├── consumers/     # Redis Stream consumers
-│   │   ├── services/      # Yellow, Li.Fi, Database
-│   │   └── config/        # Contracts, Redis, Env
-│   ├── prisma/            # Database schema
-│   └── docker-compose.yml # Local infrastructure
-│
-└── frontend/              # Next.js dashboard
-    ├── app/
-    │   ├── page.tsx       # Main dashboard
-    │   └── api/           # (removed - using backend API)
-    └── styles/
-```
+### Smart Contracts
+
+- **Atomic settlements** — entire batch succeeds or reverts
+- **Access control** — only authorized BatchSettler can withdraw from PaymentPool
+- **ReentrancyGuard** — on all state-changing functions
+- **Pausable** — emergency stop on all contracts
+- **Token whitelist** — only approved tokens accepted
+- **SafeERC20** — handles non-standard token implementations
+- **Fuzz testing** — Foundry runs 256+ random inputs per fuzz test
+
+### Backend
+
+- **Event replay protection** — database tracks processed payment IDs
+- **Redis consumer groups** — exactly-once message processing
+- **Graceful shutdown** — completes in-flight transactions before stopping
+- **Connection pool management** — Neon-compatible limits prevent exhaustion
 
 ---
 
-## 🏆 Sponsor Integration
+## Roadmap
 
-### Yellow Network (Lead Sponsor)
+### Completed
 
-- Real WebSocket connection to sandbox clearnode
-- EIP-712 authentication implementation
-- State channel transfer architecture
-- Demo mode for unfunded sandbox
+- [x] Core contracts (PaymentPool, IntentVault, BatchSettler, CCTPReceiver)
+- [x] Uniswap V4 PaymentSettlementHook
+- [x] Backend pipeline (event listener → consumers → settlement)
+- [x] CCTP V2 cross-chain relay service
+- [x] Frontend merchant dashboard with wallet connect
+- [x] Checkout-style payment widget
+- [x] Arc testnet deployment (all contracts verified)
+- [x] Production deployment (Vercel + Railway)
 
-**Code:** `backend/src/services/yellow.ts`
+### Planned
 
-### Li.Fi
-
-- Real SDK integration (`@lifi/sdk`)
-- Live API calls to production endpoint
-- Actual cross-chain routing quotes
-- Bridge/DEX aggregation demonstration
-
-**Code:** `backend/src/services/lifi.ts`
-
-### Arc Testnet
-
-- All contracts deployed on Arc
-- Gas paid in USDC (chain feature)
-- WebSocket event listening
-- Batch settlements executed on-chain
-
-**Code:** `contracts/` + `backend/src/listeners/`
-
-### Uniswap
-
-- Potential DEX integration point via Li.Fi routing
-- Future: Direct Uniswap V4 hooks for intent matching
+- [ ] **Cross-merchant netting** — collapse offsetting flows (User1→User2→User3 becomes User1→User3)
+- [ ] **Default intent for new merchants** — IntentVault returns IMMEDIATE when no intent exists
+- [ ] **SDK** — `npm install @stabl/sdk` for easy website integration
+- [ ] **Developer documentation** — hosted docs site
+- [ ] **Multi-chain source monitoring** — enable ETH Sepolia + Base Sepolia CCTP listeners
 
 ---
 
-## 🚧 Future Enhancements
+## Origin
 
-**V2 Roadmap:**
-
-- [ ] MEV protection via Flashbots/private mempools
-- [ ] Multi-token batch settlements (USDC + DAI in same batch)
-- [ ] Intent marketplace (merchants bid for batch inclusion)
-- [ ] ZK proofs for privacy-preserving intent matching
-- [ ] Account abstraction for gasless merchant experience
-- [ ] Real-time intent adjustment based on market conditions
+StabL was built during **HackMoney 2026** (ETH Global) and evolved into a post-hackathon project. The architecture independently arrived at similar patterns to Circle's Gateway (batched settlement, cross-chain USDC), with unique differentiators: merchant-controlled settlement intents, Uniswap V4 Hook integration, and a self-sovereign trust model.
 
 ---
 
-## 👥 Team
+## License
 
-Built for **HackMoney 2026** by Martin BARRAL
-
----
-
-## 📄 License
-
-MIT License - see LICENSE file for details
+MIT
 
 ---
 
-## 🙏 Acknowledgments
-
-- **Yellow Network** - State channel infrastructure inspiration
-- **Li.Fi** - Cross-chain routing excellence
-- **Arc** - USDC-gas chain innovation
-- **Foundry** - Best-in-class testing framework
-- **Anthropic** - Claude for development assistance
-
----
-
-## 📞 Contact
-
-- **Demo Video:** [Link if available]
-- **Live Demo:** http://stabl-gateway-demo.vercel.app (if deployed)
-- **GitHub:** [\[Your GitHub\]](https://github.com/MBarralDevs)
-- **Twitter:** @MBarralWeb3
-
----
-
-**Built with ❤️ for a world where stablecoin payments are instant, cheap, and universal.**
+<p align="center">
+  Built on <a href="https://arc.network">Arc Network</a> • 
+  <a href="https://developers.circle.com/cctp">CCTP V2</a> • 
+  <a href="https://docs.uniswap.org/contracts/v4/overview">Uniswap V4</a> • 
+  <a href="https://li.fi">Li.Fi</a>
+</p>
