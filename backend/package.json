@@ -4,12 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "vitest",
-    "dev": "tsx src/index.ts",
-    "api": "tsx src/api/index.ts"
-  },
+  "build": "npx prisma generate && tsc",
+  "start": "node dist/index.js",
+  "test": "vitest",
+  "dev": "tsx src/index.ts",
+  "api": "tsx src/api/index.ts"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",

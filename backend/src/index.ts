@@ -29,6 +29,8 @@ import { initializeLiFi } from './services/lifi.js';
 import { startCCTPBurnListener, stopCCTPBurnListener } from './listeners/cctpBurnListener.js';
 import { startCCTPRelayer, stopCCTPRelayer } from './services/cctpRelayer.js';
 import { validateCCTPConfig } from './config/cctp.js';
+import cors from 'cors';
+import apiRoutes from './api/routes.js';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -38,6 +40,14 @@ const PORT = process.env.PORT || 3000;
 
 const app = express();
 app.use(express.json());
+app.use(cors({
+  origin: [
+    'http://localhost:3001',
+    'http://localhost:3000',
+    process.env.FRONTEND_URL || '',
+  ].filter(Boolean),
+}));
+app.use(apiRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -14,7 +14,7 @@
  * Arc docs:  https://docs.arc.network/arc/references/contract-addresses
  */
 
-import CCTPReceiverABI from '../../../contracts/out/CCTPReceiver.sol/CCTPReceiver.json' assert { type: 'json' };
+import CCTPReceiverABI from '../abi/CCTPReceiver.json';
 
 // ─── CCTP Domain Identifiers ─────────────────────────────────────────────────
 // These are Circle-issued, NOT chain IDs.
